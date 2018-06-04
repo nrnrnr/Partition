@@ -1,6 +1,8 @@
 structure Basis : sig 
   val buildGraph : string -> string -> string ->
                    string list -> SolnCollection.collection 
+  val buildPropGraph : string -> string -> 
+                   string list -> Prop.prop list list
 
 end =
 struct

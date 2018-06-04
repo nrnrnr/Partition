@@ -16,8 +16,6 @@ listmap.sml
 
 outcomesig.sml
 outcome.sml
-outcomemapsig.sml
-outcomemap.sml
 
 testdbsig.sml
 testdb.sml
@@ -25,20 +23,27 @@ testdb.sml
 graphsig.sml
 graph.sml
 
-setsig.sml
-testset.sml
-solnset.sml
-
 embeddedmap.sml
 embeddedlistmap.sml
 
+util.sml
+
+collectionsig.sml
+testCollection.sml
+solnCollection.sml
+
 structures.sml
 
-lex.sml
+anonymizer/anon.mlb
+anonsig.sml
+anon.sml
 
-readers.sml
+
 propositionsig.sml
 proposition.sml
+
+lex.sml
+readers.sml
 
 output.sml
 
@@ -46,3 +51,6 @@ input.sml
 
 basis.sml
 build-prop-graph.sml
+
+commandline.sml
+

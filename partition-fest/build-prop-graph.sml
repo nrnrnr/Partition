@@ -1,19 +1,22 @@
 structure BuildPropGraph = struct (* for use on the command line *)
     
     val usage = ref (fn () => ())
+    fun run f (infile::outfile::failures::flags) = ignore (f infile outfile failures flags)
+      | run _ _ = !usage ()
+
+    fun run2 f (infile::outfile::flags) = ignore (f infile outfile flags)
+      | run2 _ _ = !usage ()
+
     val commands =
-        [ ("build-graph",      (fn [inf, outf] => Basis.buildGraph inf outf
-                                 | _ => !usage ())
-          , "build-graph infile outfile"
+        [ ( "build-graph", run Basis.buildGraph 
+          , "build-graph infile outfile fail [flags]"
           )
-        , ("build-prop-graph", (fn [inf, outf] => Basis.buildPropGraph inf outf
-                                 | _ => !usage ())
-          , "build-prop-graph infile outfile"
+        , ( "build-prop-graph", run2 Basis.buildPropGraph
+          , "build-prop-graph infile outfile [flags]"
           )
         ]
     val _ = usage :=
         (fn () => app (fn (_, _, s) => app print ["Usage: ", s, "\n"]) commands)
-
     
     val arg0 = CommandLine.name ()
 

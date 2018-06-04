@@ -1,0 +1,11 @@
+$(MLTON_ROOT)/basis/basis.mlb
+
+  MD5.sig
+  MD5.sml
+
+  animals.sig
+  animals.sml
+
+  anonymizer.sig
+  anonymizer.sml
+
