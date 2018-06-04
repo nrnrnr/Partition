@@ -17,6 +17,10 @@ functor TestDB (structure M1 : STRING_MAP
   fun testnolook (t, m) = M2.lookup (t, m) handle M2.NotFound _ => M3.empty
   fun outcomelook (t, m) = M3.lookup (t,m) handle M3.NotFound _ => Outcome.DNR
 
+  type tid  = string
+  type tnum = string
+  type sid  = string
+
   fun bind (test, testno, soln, out, (map, list)) = 
     let val testnomap   = testlook (explode test, map)
         val outmap = testnolook (explode testno, testnomap)
