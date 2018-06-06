@@ -1,9 +1,10 @@
-structure Basis : sig 
-  val buildGraph : string -> string -> string ->
+structure Basis : sig
+  val buildGraph : string -> string -> string -> string option ->
                    string list -> SolnCollection.collection 
   val buildPropGraph : string -> string -> 
-                   string list -> Prop.prop list list
-
+                       string list -> Prop.prop list list
+  val readGrades : string -> Grade.grade Map.map
+  val gradeNodeColors : D.NodeInfo Map.map -> Grade.grade Map.map -> string list Map.map
 end =
 struct
 
@@ -60,18 +61,30 @@ struct
   fun testRep s = case TestCollection.representative s
                     of SOME y => y
                      | NONE   => raise Impossible
-
   (* Make a new set list with renamed members, and a map to the students that
      the new names represent *)
-  val buildMapAndSet : SolnCollection.collection list -> SolnCollection.collection list * string Map.map =
+  val buildMapAndSet : SolnCollection.collection list -> SolnCollection.collection list * D.NodeInfo Map.map =
   fn sl =>
    let val (s, m, _) =
     foldr (fn (s, (set, map, c)) =>
-      let val string = SolnCollection.fold (fn ((n, _), str) => n^"\\n"^ str) "" s
+      let val ids = SolnCollection.fold (fn ((id, _), ids) => id :: ids) [] s
+          fun withIndex (id, (lastIndex, ids)) = (lastIndex+1, (lastIndex+1, id) :: ids)
+          val (_, indexed) = foldl withIndex (~1, []) ids
+          val string = case rev indexed
+                         of [] => ""
+                          | ((_, id0) :: ids) =>
+                            let fun join ((index, id), rest) =
+                                  if index mod 5 = 0 then
+                                      id ^ ",\\n" ^ rest
+                                  else
+                                      id ^ ", " ^ rest
+                            in  foldr join id0 ids
+                            end
           val (_, l) = solnRep s
-          val node = "N"^Int.toString(c)
-      in (SolnCollection.add((node, l), set), 
-          Map.bind( node, string, map), c+1) 
+          val nodeName = "N"^Int.toString(c)
+          val info = (ids, string)
+      in (SolnCollection.add((nodeName, l), set),
+          Map.bind(nodeName, info, map), c+1)
       end) 
     (SolnCollection.empty, Map.empty, 1) sl
    in (partitionSolns s,m) 
@@ -307,10 +320,12 @@ struct
                    | _    => solnReduction xs (g, m)
 
 
+  (* XXX: need to remove anonymization code since we now have an
+     extenral tool for it *)
   fun anonymize solns = 
     let fun stripResults (soln, _) = soln
         val names = map stripResults solns
-        val anon = AnonTest.anonymize (names, "jnw3")
+        fun anon x = x
     in map (fn (soln, results) => (anon soln, results)) solns
     end
 
@@ -339,9 +354,53 @@ struct
     in  p
     end
 
+  fun readGrades f =
+    let val fd = TextIO.openIn f
+        val grades = GradeReader.readToMap fd
+        val () = TextIO.closeIn fd
+    in  grades
+    end
 
+  fun eprint s = TextIO.output (TextIO.stdErr, s ^ "\n")
+  structure G = Grade
+  fun gradeNodeColors m gradesMap =
+    let fun gradeFor id0 g0 ids =
+          let fun loop [] = g0
+                | loop (id::ids) =
+                  let val g = Map.lookup (id, gradesMap)
+                  in  ( if g0 <> g then
+                            eprint (String.concatWith
+                                        " "
+                                        [ "Solution", id0, "had grade"
+                                        , Grade.toString g0
+                                        , "yet", id, "had grade"
+                                        , Grade.toString g
+                                        ])
+                        else ()
+                      ; loop ids)
+                  end
+          in  loop ids
+          end
 
-  fun buildGraph infile outfile outfileFailures flags = 
+        fun colorFor G.E = "//gray"
+          | colorFor G.VG = "/orrd9/7"
+          | colorFor G.G = "/orrd9/5"
+          | colorFor G.F = "/orrd9/3"
+          | colorFor G.P = "/orrd9/1"
+          | colorFor G.NC = "//white"
+          | colorFor (G.UNKNOWN _) = "//yellow2"
+
+        fun colorNode (_, ([], _), _) = raise Impossible (* each label is mapped to n+1 solution ids *)
+          | colorNode (label, (id0::ids, _), colors) =
+            let val g0 = Map.lookup (id0, gradesMap)
+                val color = colorFor (gradeFor id0 g0 ids)
+                val attr = "[style=filled,fillcolor=\"" ^ color ^ "\"]"
+            in  Map.bind (label, [attr], colors)
+            end
+    in  Map.mapFold colorNode Map.empty m
+    end
+
+  fun buildGraph infile outfile outfileFailures gradeFile flags =
     let val tests     = getTestPartitions infile
 	val (g ,m ,p) = buildPropGraphAndMap $ map testRep tests 
 	val tests'    = TestCollectionReduction flags (g, m, p) tests
@@ -350,8 +409,11 @@ struct
         val (s, m')   = buildMapAndSet $ partitionSolns solns
         val g'        = makeGraph s
         val (fd, ffd) = (TextIO.openOut outfile, 
-                              TextIO.openOut outfileFailures)
-        val ()        = FileWriter.printSolnGraph g' m' s fd 
+                         TextIO.openOut outfileFailures)
+        val nodeColors = case gradeFile
+                           of NONE => Map.empty
+                            | SOME f => gradeNodeColors m' (readGrades f)
+        val ()        = FileWriter.printSolnGraph g' m' s fd nodeColors
         val solns     = solnReduction flags (g', m) solns 
         val ()        = FileWriter.printStudentFailures solns ffd
         val _         = (TextIO.closeOut fd;

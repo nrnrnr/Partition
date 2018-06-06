@@ -6,19 +6,25 @@ structure FileWriter : sig
      should, false if it should not *)
 
   val printSolnGraph :
-    BasicGraph.graph -> string Map.map -> SolnCollection.collection list ->
-    TextIO.outstream -> unit
+      BasicGraph.graph ->
+      D.NodeInfo Map.map ->
+      SolnCollection.collection list ->
+      TextIO.outstream ->
+      string list Map.map -> (* Additional attributes (e.g. color) for a
+                                particular node, which get inserted just
+                                after the corresponding node is created.
+                             *)
+      unit
 
   val printStudentFailures :
     SolnCollection.collection -> TextIO.outstream -> unit
 
 end =
 struct
-
   val output = TextIO.output
 
   fun printGraph graph map out back =
-      (output (out, "digraph testgraph { fontsize=\"9\" \nsize=\"10.3,7.7\"; ratio=compress\nnode [fontsize=\"9\"] \nedge [fontsize=\"9\"]\n"); 
+      (output (out, "digraph testgraph { fontsize=\"9\" \nsize=\"10.3,7.7\"; ratio=compress\nnode [fontsize=\"9\"] \nedge [fontsize=\"9\"]\ncolorscheme=\"brewer\"\n"); 
        foldl (fn (name, _) =>
                let val label = G.getNodeLabel name
                in ((output (out, label ^ " [label=\"" ^
@@ -39,19 +45,26 @@ struct
              [] (G.getNodes graph);
        (output (out, "}")))
 
-  fun printSolnGraph graph map solns out =
-    (output (out, "digraph testgraph { fontsize=\"9\" \nsize=\"10.3,7.7\"; ratio=compress\nnode [fontsize=\"9\"] \nedge [fontsize=\"9\"]"); 
+  fun printSolnGraph graph map solns out attrsMap =
+    (output (out, "digraph testgraph { fontsize=\"9\" \nsize=\"10.3,7.7\"; ratio=compress\nnode [fontsize=\"9\"] \nedge [fontsize=\"9\"]\n"); 
 
        foldr (fn (soln, _) =>
 
        foldl (fn ((label, results),_) =>
-         (output (out, label ^ " [label=\"" ^
-                                Map.lookup(label, map) ^
-          foldr (fn ((_, outcome), s) => if Outcome.eq (outcome, Outcome.PASSED)
-                                         then "|" ^ s 
-                                         else if Outcome.eq(outcome, Outcome.DNR)                                             then "/" ^ s
-                                              else "." ^ s) "" results
-          ^ "\"]\n"); []))
+         let val (ids, string) = Map.lookup (label, map)
+             fun formatAttr a = label ^ " " ^ a ^ "\n"
+             val attrs = List.map formatAttr (Map.lookup (label, attrsMap))
+                         handle Map.NotFound _ => []
+         in
+             (output (out, label ^ " [label=\"" ^ string ^ "\\n" ^
+                           foldr (fn ((_, outcome), s) => if Outcome.eq (outcome, Outcome.PASSED) then
+                                                              "|" ^ s
+                                                          else if Outcome.eq(outcome, Outcome.DNR) then
+                                                              "/" ^ s
+                                                          else "." ^ s)
+                                 "" results
+                           ^ "\"]\n" ^ String.concat attrs); [])
+         end)
        [] soln) [] solns;
 
        foldl (fn (name, _) =>

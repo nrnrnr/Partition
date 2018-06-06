@@ -26,11 +26,8 @@ end
   infix 2 >>! 
   infix 5 ---
 
-  fun dropWhile p [] = []
-    | dropWhile p (c::cs) = if p c then dropWhile p cs
-                            else c :: cs
 
-  fun getWitness (_, cs) = SOME (implode (dropWhile Char.isSpace cs), [])
+  fun getWitness (_, cs) = SOME (implode (Util.dropWhile Char.isSpace cs), [])
 
   fun isDelim c = c = #","   (* limited notion of delim *)
   fun idChar c = Char.isAlphaNum c orelse c = #"-" orelse c = #"."
@@ -55,7 +52,7 @@ end
     | toOutcome ["-given", id, "test", num, ",", soln, badthing, witness] =
         finish id num soln (Outcome.NOTPASSED { outcome = badthing
                                               , witness = witness })
-    | toOutcome ["given", id, "test", num, ",", soln, "passed"] =
+    | toOutcome ("given" :: id :: "test" :: num :: "," :: soln :: "passed" :: rest) =
         finish id num soln Outcome.PASSED
     | toOutcome ["given", id, "test", num, ",", soln, badthing, witness] =
         finish id num soln (Outcome.NOTPASSED { outcome = badthing
@@ -97,4 +94,65 @@ end
         
   end
 
+end
+
+structure GradeReader :> sig
+  val readToMap : TextIO.instream -> Grade.grade Map.map
+end = struct
+    val (VG, G, F, P, NC, UNKNOWN) = (Grade.VG, Grade.G, Grade.F, Grade.P, Grade.NC, Grade.UNKNOWN)
+    exception InvalidUtln = D.InvalidUtln
+
+    fun invalidLine l = raise InvalidUtln ("Unrecognized line: '" ^ l ^ "'")
+    fun utlnLinesToMap [] = raise InvalidUtln "Tried to read grades from a UTLN file with no lines"
+      | utlnLinesToMap (header :: rest) =
+        let fun isBodyLine s = Char.isSpace (String.sub (s, 0))
+            fun getEntry nameLine rest =
+              case String.tokens Char.isSpace nameLine
+                of [name, g] => (Util.dropWhile isBodyLine rest, (name, Grade.ofString g))
+                 | _ => raise InvalidUtln ("Didn't get two tokens in name line: " ^ nameLine)
+            fun loop [] entries = entries
+              | loop (l0 :: ls) entries =
+                case String.tokens Char.isSpace l0
+                 of ("[[" :: _) => loop ls entries (* not sure if this is valid UTLN format *)
+                  | ("]]" :: _)  => loop ls entries
+                  | macro :: "=" :: _ => loop (Util.dropWhile isBodyLine ls) entries
+                  | [_, _] =>
+                    let val (rest, (name, grade)) = getEntry l0 ls
+                    in  loop rest (Map.bind (name, grade, entries))
+                    end
+                  | (s :: rest) => if String.sub (s, 0) = #"<" then
+                                       loop ls entries
+                                   else
+                                       invalidLine l0
+                  | [] => loop ls entries
+        in  loop rest Map.empty
+        end
+
+    fun readToMap fd =
+      let fun fdLines sofar =
+            case TextIO.inputLine fd
+             of NONE => rev sofar
+              | SOME l => fdLines (l :: sofar)
+      in  utlnLinesToMap (fdLines [])
+      end
+
+    structure UnitTests = struct
+        val assert = Impossible.assert
+        val lines = [ "utln solver"
+                    , "aph01   VG"
+                    , "  We found no faults in this code."
+                    , "wasp11  G"
+                    , "bee   F"
+                    , "asp NR"
+                    ]
+        val grades : Grade.grade Map.map = utlnLinesToMap lines
+        fun gradeOf id = Map.lookup (id, grades)
+
+        val () = app assert [ gradeOf "aph01" = VG
+                            , gradeOf "wasp11" = G
+                            , gradeOf "ajksdl" = NC
+                              handle Map.NotFound "ajksdl" => true
+                            , gradeOf "asp" = UNKNOWN "NR"
+                            ]
+    end
 end

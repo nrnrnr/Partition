@@ -3,6 +3,7 @@ signature UTILITIES = sig
   val vcompare : ('a * 'a -> order) -> 'a list * 'a list -> order option
   val vcomparePartial : ('a * 'a -> order option) -> 'a list * 'a list -> order option
   val flatten  : 'a list list -> 'a list
+  val dropWhile : ('a -> bool) -> 'a list -> 'a list
 end
 
 structure Util : UTILITIES = struct
@@ -44,4 +45,7 @@ fun flatten [] = []
   | flatten [x] = x
   | flatten (x::xs) = flatten [x] @ flatten xs
 
+fun dropWhile p [] = []
+  | dropWhile p (c::cs) = if p c then dropWhile p cs
+                          else c :: cs
 end
