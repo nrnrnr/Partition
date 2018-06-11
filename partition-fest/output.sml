@@ -46,35 +46,48 @@ struct
        (output (out, "}")))
 
   fun printSolnGraph graph map solns out attrsMap =
-    (output (out, "digraph testgraph { fontsize=\"9\" \nsize=\"10.3,7.7\"; ratio=compress\nnode [fontsize=\"9\"] \nedge [fontsize=\"9\"]\n"); 
+    let fun output' s = output (out, s)
+    in  ( output' "digraph testgraph { fontsize=\"9\" \nsize=\"10.3,7.7\"; ratio=compress\nnode [fontsize=\"9\"] \nedge [fontsize=\"9\"]\n"
+        ; printSolutions output' map attrsMap solns
+        ; printEdges output' graph
+        ; output' "}"
+        )
+    end
 
-       foldr (fn (soln, _) =>
+  and printSolutions output map attrsMap solns =
+      app (fn soln =>
+              app (fn (label, results) =>
+                      let val (_, names) = Map.lookup (label, map)
+                          fun formatAttr a = label ^ " " ^ a ^ "\n"
+                          val attrs = List.map formatAttr (Map.lookup (label, attrsMap))
+                                      handle Map.NotFound _ => []
+                      in output (renderSolution label results names attrs)
+                      end)
+                  soln) solns
 
-       foldl (fn ((label, results),_) =>
-         let val (ids, string) = Map.lookup (label, map)
-             fun formatAttr a = label ^ " " ^ a ^ "\n"
-             val attrs = List.map formatAttr (Map.lookup (label, attrsMap))
-                         handle Map.NotFound _ => []
-         in
-             (output (out, label ^ " [label=\"" ^ string ^ "\\n" ^
-                           foldr (fn ((_, outcome), s) => if Outcome.eq (outcome, Outcome.PASSED) then
-                                                              "|" ^ s
-                                                          else if Outcome.eq(outcome, Outcome.DNR) then
-                                                              "/" ^ s
-                                                          else "." ^ s)
-                                 "" results
-                           ^ "\"]\n" ^ String.concat attrs); [])
-         end)
-       [] soln) [] solns;
+  and renderSolution nodeId outcomeSet names extraAttrs =
+      String.concat [ nodeId
+                    , " [label=\"" , names , "\\n"
+                    , renderOutcomeSet outcomeSet
+                    , "\"]\n"
+                    , String.concat extraAttrs
+                    ]
 
-       foldl (fn (name, _) =>
-               foldr (fn (name2, _) => 
-                         ((output (out, G.getNodeLabel name ^ " -> " ^
-                                        G.getNodeLabel name2 ^ 
-                                        " [dir=back]\n")); []))
-                  [] (G.getSuccessorNodes (name, graph)))
-             [] (G.getNodes graph);
-       (output (out, "}")))
+  and renderOutcomeSet os =
+      let fun renderOutcome Outcome.PASSED = "|"
+            | renderOutcome (Outcome.NOTPASSED _) = "."
+            | renderOutcome Outcome.DNR = "/"
+      in  String.concat (map renderOutcome (map (fn (_, outcome) => outcome) os))
+      end
+
+  and printEdges output graph =
+      app (fn name =>
+              app (fn name2 =>
+                      output (G.getNodeLabel name ^ " -> " ^
+                               G.getNodeLabel name2 ^
+                               " [dir=back]\n"))
+                  (G.getSuccessorNodes (name, graph)))
+          (G.getNodes graph)
 
   fun idToString (x,y) = x ^ " " ^ y
 
