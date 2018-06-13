@@ -10,12 +10,15 @@ swiss-army-knife: $SOURCES compile.mlb
 nj:V: # compile with sml/nj
 	echo 'CM.make "compile.cm";' | sml
 
-
 njbin:V:
 	sml <<'EOF'
 	CM.make "compile.cm";
 	SMLofNJ.exportFn ("rank", SMLofNJPartition.run)
 	EOF
 
+# If you build njbin and then njdebug, CM incorrectly thinks the heap
+# from njbin is the same as what you'd get from njdebug; For some reason
+# it doesn't appear to take the -C switch into account.
 njdebug:V:
+    touch smlnj-partition.sml
     ml-build -Ctdp.instrument=true \$smlnj-tdp/back-trace.cm compile.cm SMLofNJPartition.runDebug rank
