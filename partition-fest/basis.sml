@@ -372,12 +372,13 @@ struct
                             eprint (String.concatWith
                                         " "
                                         [ "Solution", id0, "had grade"
-                                        , Grade.toString g0
+                                        , G.toString g0
                                         , "yet", id, "had grade"
-                                        , Grade.toString g
+                                        , G.toString g
                                         ])
                         else ()
-                      ; loop ids)
+                      ; loop ids
+                      )
                   end
           in  loop ids
           end
@@ -390,7 +391,7 @@ struct
           | colorFor G.NC = "//white"
           | colorFor (G.UNKNOWN _) = "//yellow2"
 
-        fun colorNode (_, ([], _), _) = raise Impossible (* each label is mapped to n+1 solution ids *)
+        fun colorNode (_, ([], _), _) = raise Impossible (* each label is mapped to n > 0 solution ids *)
           | colorNode (label, (id0::ids, _), colors) =
             let val g0 = Map.lookup (id0, gradesMap)
                 val color = colorFor (gradeFor id0 g0 ids)

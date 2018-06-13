@@ -14,12 +14,45 @@ end
 structure OutcomeSingle :> OUTCOME = struct
   open O
 
+  fun eprint s = TextIO.output (TextIO.stdErr, s ^ "\n")
+
   fun compare (PASSED, NOTPASSED _)      = GREATER
     | compare (PASSED, PASSED   )        = EQUAL
     | compare (NOTPASSED _, PASSED)      = LESS
-    | compare (NOTPASSED _, NOTPASSED _) = EQUAL
+    | compare (NOTPASSED { outcome = c1, ...}, NOTPASSED { outcome = c2, ... }) =
+      let (* not the typical trim function, but equivalent in this context because
+             no reason has spaces in the middle *)
+          fun trim s = String.implode (List.filter (not o Char.isSpace) (String.explode s))
+          val c1 = trim c1
+          val c2 = trim c2
+      in compareReason c1 c2
+      end
     | compare (DNR, DNR)                 = EQUAL
     | compare (_,_)                      = raise DNRComparison
+  and compareReason "blewstack" "errored" = LESS
+    | compareReason "errored" "blewstack" = GREATER
+    | compareReason "errored" "failed" = LESS
+    | compareReason "failed" "errored" = GREATER
+    | compareReason "blewstack" "failed" = LESS
+    | compareReason "failed" "blewstack" = GREATER
+    | compareReason r1 r2 =
+      ( (* We don't treat the empty string as an unrecognized reason because
+           code in the Prop structure compares "" with all of the given
+           outcomes. We *could* try to only complain about a particular reason
+           the first time we see it, but then we also need to keep a list of what
+           reasons we're expecting (need to be able to distinguish a known reason
+           from the unknown ones). *)
+        if r1 <> r2 andalso r1 <> "" andalso r2 <> "" then
+            let val msg = String.concat [ "One or more unrecognized outcome reasons; got "
+                                        , "'", r1, "', and "
+                                        , "'", r2, "'"
+                                        ]
+            in eprint msg
+            end
+        else
+            ()
+      ; EQUAL
+      )
 
   fun comparePartial (PASSED, NOTPASSED _)      = SOME GREATER
     | comparePartial (PASSED, PASSED   )        = SOME EQUAL

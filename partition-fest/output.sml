@@ -45,21 +45,21 @@ struct
              [] (G.getNodes graph);
        (output (out, "}")))
 
-  fun printSolnGraph graph map solns out attrsMap =
+  fun printSolnGraph graph map solns out nodeAttrs =
     let fun output' s = output (out, s)
     in  ( output' "digraph testgraph { fontsize=\"9\" \nsize=\"10.3,7.7\"; ratio=compress\nnode [fontsize=\"9\"] \nedge [fontsize=\"9\"]\n"
-        ; printSolutions output' map attrsMap solns
+        ; printSolutions output' map nodeAttrs solns
         ; printEdges output' graph
         ; output' "}"
         )
     end
 
-  and printSolutions output map attrsMap solns =
+  and printSolutions output map nodeAttrs solns =
       app (fn soln =>
               app (fn (label, results) =>
                       let val (_, names) = Map.lookup (label, map)
                           fun formatAttr a = label ^ " " ^ a ^ "\n"
-                          val attrs = List.map formatAttr (Map.lookup (label, attrsMap))
+                          val attrs = List.map formatAttr (Map.lookup (label, nodeAttrs))
                                       handle Map.NotFound _ => []
                       in output (renderSolution label results names attrs)
                       end)
@@ -80,13 +80,20 @@ struct
       in  String.concat (map renderOutcome (map (fn (_, outcome) => outcome) os))
       end
 
+  and renderEdge e =
+      let val src = G.getIn e
+          val label = G.getEdgeLabel e
+          val dest = G.getOut e
+      in  String.concat [ src, " -> ", dest
+                        , "[dir=back,label=\""
+                        , label, "\"]\n"
+                        ]
+      end
+
   and printEdges output graph =
       app (fn name =>
-              app (fn name2 =>
-                      output (G.getNodeLabel name ^ " -> " ^
-                               G.getNodeLabel name2 ^
-                               " [dir=back]\n"))
-                  (G.getSuccessorNodes (name, graph)))
+              app (fn edge => output (renderEdge edge))
+                  (G.getSuccessorEdges (name, graph)))
           (G.getNodes graph)
 
   fun idToString (x,y) = x ^ " " ^ y

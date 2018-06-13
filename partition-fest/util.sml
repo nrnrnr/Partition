@@ -1,6 +1,13 @@
 signature UTILITIES = sig
   val insertion_sort : ('a * 'a -> order) -> 'a list -> 'a list
-  val vcompare : ('a * 'a -> order) -> 'a list * 'a list -> order option
+  val vcompare :
+      (* given cmp, an ordering on 'a; xs ys, two 'a lists of equal length
+         returns SOME o where (considering the cases top to bottom)
+           o = EQUAL if all pairwise (x, y) x = y
+               LESS if all pairwise (x, y) x <= y
+               GREATER if all pairwise (x, y) x >= y
+         otherwise, returns NONE *)
+      ('a * 'a -> order) -> 'a list * 'a list -> order option
   val vcomparePartial : ('a * 'a -> order option) -> 'a list * 'a list -> order option
   val flatten  : 'a list list -> 'a list
   val dropWhile : ('a -> bool) -> 'a list -> 'a list
