@@ -1,4 +1,4 @@
-structure CommandLine = struct
+structure Partition = struct
 
   fun eprint s = TextIO.output(TextIO.stdErr, s)
       

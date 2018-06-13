@@ -1,4 +1,4 @@
-$(MLTON_ROOT)/basis/basis.mlb
+$(SML_LIB)/basis/basis.mlb
 
 impossible.sml
 
@@ -50,7 +50,6 @@ output.sml
 input.sml
 
 basis.sml
-build-prop-graph.sml
 
-commandline.sml
+partition.sml
 

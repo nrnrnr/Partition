@@ -48,7 +48,9 @@ group is $/basis.cm
 
   basis.sml
 
-  commandline.sml
+  partition.sml
+  smlnj-partition.sml
 
   $qcheck/qcheck.cm
 
+  $smlnj-tdp/plugins.cm

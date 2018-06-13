@@ -1,4 +1,4 @@
-SOURCES=`echo *.sml *.cm */*.sml */*.sig`
+SOURCES=`echo *.sml *.cm */*.sml */*.sig | tr ' ' '\n' | grep -v smlnj | tr '\n' ' '`
 
 all:V: njbin
 
@@ -13,10 +13,9 @@ nj:V: # compile with sml/nj
 
 njbin:V:
 	sml <<'EOF'
-    CM.make "$smlnj-tdp/back-trace.cm";
 	CM.make "compile.cm";
-	SMLofNJ.exportFn ("rank", fn x => BackTrace.monitor (fn () => CommandLine.run x));
+	SMLofNJ.exportFn ("rank", SMLofNJPartition.run)
 	EOF
 
-
-
+njdebug:V:
+    ml-build -Ctdp.instrument=true \$smlnj-tdp/back-trace.cm compile.cm SMLofNJPartition.runDebug rank
