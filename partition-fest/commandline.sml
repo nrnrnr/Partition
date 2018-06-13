@@ -42,20 +42,18 @@ structure CommandLine = struct
                )
 
   fun run (prog, argv) =
-    (case options argv
+    case options argv
       of (options, [outcomes]) =>
-          ( Basis.buildGraph outcomes (outfile options)
-                                      (witnessfile options)
-                                      (gradesfile options)
-                                      []
-          ; OS.Process.success
-          )
+         ( Basis.buildGraph outcomes (outfile options)
+                            (witnessfile options)
+                            (gradesfile options)
+                            []
+         ; OS.Process.success
+         )
        | (options, argv) =>
-            ( app eprint ["Usage: ", prog, " [-c | -u | -o filename | -g filename] outcomefile\n" ]
-            ; eprint "Got these args:" ; app (fn s => app eprint [" ", s]) argv
-            ; eprint "\n"
-            ; OS.Process.failure
-            ))
-    handle (D.InvalidUtln s) => fail ("Invalid UTLN: " ^ s ^ "\n")
-         | e => fail ("Unhandled exception: " ^ exnMessage e ^ "\n")
+         ( app eprint ["Usage: ", prog, " [-c | -u | -o filename | -g filename] outcomefile\n" ]
+         ; eprint "Got these args:" ; app (fn s => app eprint [" ", s]) argv
+         ; eprint "\n"
+         ; OS.Process.failure
+         )
 end

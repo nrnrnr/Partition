@@ -13,8 +13,9 @@ nj:V: # compile with sml/nj
 
 njbin:V:
 	sml <<'EOF'
+    CM.make "$smlnj-tdp/back-trace.cm";
 	CM.make "compile.cm";
-	SMLofNJ.exportFn ("rank", CommandLine.run);
+	SMLofNJ.exportFn ("rank", fn x => BackTrace.monitor (fn () => CommandLine.run x));
 	EOF
 
 
