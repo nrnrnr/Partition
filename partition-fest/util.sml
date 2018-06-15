@@ -1,6 +1,7 @@
 signature UTILITIES = sig
   val insertion_sort : ('a * 'a -> order) -> 'a list -> 'a list
   val vcompare : ('a * 'a -> order) -> 'a list * 'a list -> order option
+  val vcomparePartial : ('a * 'a -> order option) -> 'a list * 'a list -> order option
   val flatten  : 'a list list -> 'a list
 end
 
@@ -23,6 +24,21 @@ fun vcompare cmp ([], []) = SOME EQUAL
           | GREATER => if ListPair.exists (eq LESS o cmp) (xs, ys)
                        then NONE else SOME GREATER)
   | vcompare _ _ = raise ListPair.UnequalLengths
+
+fun vcomparePartial cmp ([], []) = SOME EQUAL
+  | vcomparePartial cmp (x::xs, y::ys) =
+      let fun le (x, y) = case cmp (x, y) of SOME EQUAL => true
+                                           | SOME LESS => true
+                                           | SOME GREATER => false
+                                           | NONE => false
+          fun ge (x, y) = le (y, x)
+      in  case cmp (x, y)
+            of NONE => NONE
+             | SOME EQUAL => vcomparePartial cmp (xs, ys)
+             | SOME LESS  => if ListPair.allEq le (xs, ys) then SOME LESS else NONE
+             | SOME GREATER => if ListPair.allEq ge (xs, ys) then SOME GREATER else NONE
+      end
+  | vcomparePartial _ _ = raise ListPair.UnequalLengths
 
 fun flatten [] = []
   | flatten [x] = x
