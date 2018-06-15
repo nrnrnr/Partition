@@ -69,6 +69,15 @@ functor SolnCollection (Outcome : OUTCOME) : COMPARABLE_COLLECTION = struct
     let val (v1, v2) = (Util.insertion_sort cmpTestsO v1,
                         Util.insertion_sort cmpTestsO v2)
         val (v1, v2) = (LP.unzip o stripDNR o LP.zip) (v1, v2)
+        fun compare ((_, out1), (_,out2)) = Outcome.comparePartial (out1, out2)
+    in  Util.vcomparePartial compare (v1, v2)
+    end
+
+  val oldRankElem : elem * elem -> order option = fn ((_, v1), (_, v2)) => 
+      (* v1 and v2 are vectors of (tagged) outcomes *)
+    let val (v1, v2) = (Util.insertion_sort cmpTestsO v1,
+                        Util.insertion_sort cmpTestsO v2)
+        val (v1, v2) = (LP.unzip o stripDNR o LP.zip) (v1, v2)
         fun compare ((_, out1), (_,out2)) = Outcome.compare (out1, out2)
     in  Util.vcompare compare (v1, v2)
     end
