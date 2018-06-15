@@ -21,6 +21,14 @@ structure OutcomeSingle :> OUTCOME = struct
     | compare (DNR, DNR)                 = EQUAL
     | compare (_,_)                      = raise DNRComparison
 
+  fun comparePartial (PASSED, NOTPASSED _)      = SOME GREATER
+    | comparePartial (PASSED, PASSED   )        = SOME EQUAL
+    | comparePartial (NOTPASSED _, PASSED)      = SOME LESS
+    | comparePartial (DNR, DNR)                 = SOME EQUAL
+    | comparePartial (NOTPASSED a, NOTPASSED b) =
+        if #outcome a = #outcome b then SOME EQUAL else NONE
+    | comparePartial (_,_)                      = raise DNRComparison
+
   fun eq (o1, o2) = 
     (case compare (o1, o2)
       of EQUAL => true
@@ -39,6 +47,16 @@ structure OutcomeMultiple :> OUTCOME = struct
             if out1 = out2 then EQUAL
                           else if out1 = "errored" then LESS else GREATER
     | compare (_, _) = EQUAL
+
+  (* dodgy *)
+  fun comparePartial (PASSED, NOTPASSED _) = SOME GREATER
+    | comparePartial (PASSED, _) = SOME EQUAL
+    | comparePartial (NOTPASSED _, PASSED) = SOME LESS
+    | comparePartial (NOTPASSED {outcome = out1, witness = wit1}, 
+               NOTPASSED {outcome = out2, witness = wit2}) = 
+            if out1 = out2 then SOME EQUAL else NONE
+    | comparePartial (DNR, DNR)                 = SOME EQUAL
+    | comparePartial (_, _) = NONE
 
   fun eq (o1, o2) = 
     (case compare (o1, o2)

@@ -11,6 +11,8 @@ signature OUTCOME = sig
   val compare     : outcome * outcome -> order
   val eq            : outcome * outcome -> bool 
 
+  val comparePartial : outcome * outcome -> order option
+
 end
 
 (*
