@@ -66,18 +66,32 @@ struct
                   soln) solns
 
   and renderSolution nodeId outcomeSet names extraAttrs =
-      String.concat [ nodeId
-                    , " [label=\"" , names , "\\n"
-                    , renderOutcomeSet outcomeSet
-                    , "\"]\n"
-                    , String.concat extraAttrs
-                    ]
+      let val outcomes = map (fn (_, outcome) => outcome) outcomeSet
+      in  String.concat [ nodeId
+                        , " [label=\"" , names , "\\n"
+                        , renderOutcomes outcomes , "\\n"
+                        , renderReasons outcomes
+                        , "\"]\n"
+                        , String.concat extraAttrs
+                        ]
+      end
 
-  and renderOutcomeSet os =
+  and renderOutcomes os =
       let fun renderOutcome Outcome.PASSED = "|"
             | renderOutcome (Outcome.NOTPASSED _) = "."
             | renderOutcome Outcome.DNR = "/"
-      in  String.concat (map renderOutcome (map (fn (_, outcome) => outcome) os))
+      in  String.concat (map renderOutcome os)
+      end
+
+  and renderReasons os =
+      let fun withReason (Outcome.PASSED, rs) = rs
+            | withReason (Outcome.NOTPASSED { outcome = r, ...}, rs) =
+              if List.exists (fn s => r = s) rs
+              then rs
+              else r :: rs
+            | withReason (Outcome.DNR, rs) = rs
+          val reasons = List.foldr withReason [] os
+      in  String.concatWith ", " reasons
       end
 
   and renderEdge e =
