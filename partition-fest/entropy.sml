@@ -10,13 +10,37 @@ structure Entropy :> sig
                   (* if we want to compute the entropy of a single test,
                      instantiate a with a single outcome; if we want to compute
                      the entropy of a set of tests, instantiate a with a vector of outcomes *)
+                  (* for each a, the returned histogram counts how many b's have that a *)
           end =
   struct
     fun impossible s = let exception Impossible of string in raise Impossible s end
-    type entropy = real
 
     fun member x [] = false
       | member x (y::ys) = x = y orelse member x ys
+
+    fun allDistinct [] = true
+      | allDistinct (x::xs) = not (member x xs) andalso allDistinct xs
+
+    fun histogram pairs =
+        let val (outcomes, students) = ListPair.unzip pairs
+            val () = if not (allDistinct students)
+                     then  impossible "duplicate students"
+                     else  ()
+        in  foldl H.inc H.zeroes outcomes
+        end
+
+
+    fun log2 r = Real.Math.ln r / Real.Math.ln 2
+
+    fun entropy histogram =
+        let val keys = H.nonzeroKeys histogram
+            val total = real (H.total histogram)
+            fun e key = (* summand for key's contribution to the entropy *)
+                let val p = real (H.count (key, histogram)) / total
+                in  p * log2 p
+                end
+        in  ~ (foldl (fn (key, sum) => e key + sum) 0.0 keys)
+        end
   end
 
 signature HISTOGRAM = sig
@@ -28,7 +52,6 @@ signature HISTOGRAM = sig
 
       val nonzeroKeys : 'a counter -> 'a list
   end
-
 
 structure Histogram :> HISTOGRAM =
   struct
