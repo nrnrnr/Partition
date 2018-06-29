@@ -9,6 +9,7 @@ structure Partition = struct
       | WitnessRed
       | Outfile of string
       | Gradesfile of string
+      | PrintDistribution of TextIO.outstream
 
   fun options argv =
     let fun eat (options', "-c" :: argv) = eat (RankClaessen :: options', argv)
@@ -18,6 +19,7 @@ structure Partition = struct
           | eat (options', "-g" :: filename :: argv) =
               eat (Gradesfile filename :: options', argv)
           | eat (options', "-w" :: argv) = eat (WitnessRed :: options', argv)
+          | eat (options', "-d" :: argv) = eat (PrintDistribution TextIO.stdErr :: options', argv)
           | eat (options', argv) = (options', argv)
         val (options', argv) = eat ([], argv)
     in  (rev options', argv)
@@ -36,6 +38,9 @@ structure Partition = struct
   fun gradesfile [] = NONE
     | gradesfile (Gradesfile s :: _) = SOME s
     | gradesfile (_ :: options) = gradesfile options
+  fun distributiondest [] = NONE
+    | distributiondest (PrintDistribution out :: _) = SOME out
+    | distributiondest (_ :: options) = distributiondest options
 
   fun fail s = ( eprint s
                ; OS.Process.failure
@@ -47,11 +52,12 @@ structure Partition = struct
          ( Basis.buildGraph outcomes (outfile options)
                             (witnessfile options)
                             (gradesfile options)
+                            (distributiondest options)
                             []
          ; OS.Process.success
          )
        | (options, argv) =>
-         ( app eprint ["Usage: ", prog, " [-c | -u | -o filename | -g filename] outcomefile\n" ]
+         ( app eprint ["Usage: ", prog, " [-c | -u | -o filename | -g filename | -d] outcomefile\n" ]
          ; eprint "Got these args:" ; app (fn s => app eprint [" ", s]) argv
          ; eprint "\n"
          ; OS.Process.failure

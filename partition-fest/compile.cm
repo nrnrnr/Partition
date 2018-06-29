@@ -54,3 +54,5 @@ group is $/basis.cm
   $qcheck/qcheck.cm
 
   $smlnj-tdp/plugins.cm
+
+  nodemap.sml
