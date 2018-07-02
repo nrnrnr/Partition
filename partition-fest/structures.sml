@@ -41,5 +41,7 @@ structure Grade = struct
 structure Data = struct
     type NodeInfo = (string list * string)
     exception InvalidUtln of string
+    datatype entropyOpt = SingleTest of (string * int)
+           | AllTests
 end
 structure D = Data

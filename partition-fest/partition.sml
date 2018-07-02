@@ -1,7 +1,6 @@
 structure Partition = struct
 
-  fun eprint s = TextIO.output(TextIO.stdErr, s)
-      
+  fun eprint s = TextIO.output(TextIO.stdErr, s)      
 
   datatype opt
       = RankClaessen
@@ -42,24 +41,66 @@ structure Partition = struct
     | distributiondest (PrintDistribution out :: _) = SOME out
     | distributiondest (_ :: options) = distributiondest options
 
-  fun fail s = ( eprint s
-               ; OS.Process.failure
-               )
+  fun doPartition (prog, argv) =
+      case options argv
+       of (options, [outcomes]) =>
+          ( Basis.buildGraph outcomes (outfile options)
+                             (witnessfile options)
+                             (gradesfile options)
+                             (distributiondest options)
+                             []
+          ; OS.Process.success
+          )
+        | (options, argv) =>
+          ( app eprint ["Usage: ", prog, " partition [-c | -u | -o filename | -g filename | -d] outcomefile\n" ]
+          ; eprint "Got these args:" ; app (fn s => app eprint [" ", s]) argv
+          ; eprint "\n"
+          ; OS.Process.failure
+          )
+
+
+
+
+  exception BadOption of string
+  fun checkSingleTest tid tnum =
+      case Int.fromString tnum
+       of SOME tnum =>
+          if tnum >= 0
+          then D.SingleTest (tid, tnum)
+          else raise BadOption ("For single tests, the tnum must be nonnegative; got '" ^ Int.toString tnum ^ "'")
+        | NONE => raise BadOption ("For single tests, the tnum must be an integer; got '" ^ tnum ^ "'")
+
+  fun entropyOptions argv =
+      let fun eat (options', "-t" :: tid :: tnum :: argv) = eat (checkSingleTest tid tnum :: options', argv)
+            | eat (options', "--single" :: tid :: tnum :: argv) = eat (checkSingleTest tid tnum :: options', argv)
+            | eat (options', "--all" :: argv) = eat (D.AllTests :: options', argv)
+            | eat (options', argv) = (options', argv)
+          val (options', argv) = eat ([], argv)
+      in  (rev options', argv)
+      end
+
+  fun success s = ( TextIO.output (TextIO.stdOut, s)
+                  ; OS.Process.success
+                  )
+
+  fun doEntropy (prog, argv) =
+      (case entropyOptions argv
+        of ([whichTest], [outcomes]) => success (Basis.renderEntropy whichTest outcomes ^ "\n")
+         | ([], [outcomes]) => success (Basis.renderEntropy D.AllTests outcomes ^ "\n")
+         | (options, argv) =>
+           ( app eprint ["Usage: ", prog, " entropy [--single tid tnum | --all] outcomes\n"]
+           ; eprint "Got these args:" ; app (fn s => app eprint [" ", s]) argv
+           ; eprint "\n"
+           ; OS.Process.failure
+      ))
+      handle BadOption s => (app eprint [s, "\n"] ; OS.Process.failure)
 
   fun run (prog, argv) =
-    case options argv
-      of (options, [outcomes]) =>
-         ( Basis.buildGraph outcomes (outfile options)
-                            (witnessfile options)
-                            (gradesfile options)
-                            (distributiondest options)
-                            []
-         ; OS.Process.success
-         )
-       | (options, argv) =>
-         ( app eprint ["Usage: ", prog, " [-c | -u | -o filename | -g filename | -d] outcomefile\n" ]
-         ; eprint "Got these args:" ; app (fn s => app eprint [" ", s]) argv
-         ; eprint "\n"
-         ; OS.Process.failure
-         )
+      let val (mode, argv) =
+              (case argv
+                of ("partition" :: argv') => (doPartition, argv')
+                 | ("entropy" :: argv') => (doEntropy, argv')
+                 | _ => (doPartition, argv))
+      in  mode (prog, argv)
+      end
 end

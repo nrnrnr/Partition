@@ -5,6 +5,7 @@ structure Basis : sig
                        string list -> Prop.prop list list
   val readGrades : string -> Grade.grade Map.map
   val gradeNodeColors : D.NodeInfo Map.map -> Grade.grade Map.map -> string list Map.map
+  val renderEntropy : D.entropyOpt -> string -> string
 end =
 struct
 
@@ -453,6 +454,36 @@ struct
         val _          = (TextIO.closeOut fd;
                           TextIO.closeOut ffd)
     in solns
-    end                              
+    end
 
+  fun getAllTests outcomes =
+      (* XXX Need to accumulate a vector of outcomes for each student
+         not a list of outcome*student pairs *)
+      let fun addTest (_, _, student, outcome, testsSoFar) =
+              (outcome, student) :: testsSoFar
+      in  DB.fold addTest [] outcomes
+      end
+  fun getOneTest tid tnum outcomes =
+      let val tnum = Int.toString tnum
+          fun addTest (tid', tnum', student, outcome, testsSoFar) =
+              if tid' = tid andalso tnum' = tnum
+              then (outcome, student) :: testsSoFar
+              else testsSoFar
+      in  DB.fold addTest [] outcomes
+      end
+
+  fun renderEntropy whichTest outcomesPath =
+      let val ins = TextIO.openIn outcomesPath
+          val outcomesByTest = FileReader.readToMap ins
+          val () = TextIO.closeIn ins
+          val tests = case whichTest
+                        of D.AllTests => getAllTests outcomesByTest
+                         | D.SingleTest (tid, tnum) => getOneTest tid tnum outcomesByTest
+          val histogram = Entropy.histogram tests
+          val () = if null (Entropy.H.nonzeroKeys histogram)
+                   then eprint "Warning: no tests found"
+                   else ()
+          val entropy = Entropy.entropy histogram
+      in  Real.toString entropy
+      end
 end

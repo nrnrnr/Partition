@@ -10,8 +10,8 @@ signature HISTOGRAM = sig
 
 structure Histogram :> HISTOGRAM =
   struct
-    type 'a counter = ('a * int) list (* every int is positive
-                                         and no a appears more than once *)
+    type 'a counter = ('a * int) list (* every int is positive, and
+                                         no a appears more than once *)
     val zeroes = []
 
     fun inc (a, []) = [(a, 1)]
@@ -22,15 +22,14 @@ structure Histogram :> HISTOGRAM =
 
   fun count (a, []) = 0
     | count (a, (a', n)::pairs) =
-      if a = a' then n
+      if a = a'
+      then n
       else count (a, pairs)
 
   fun total pairs = foldl (fn ((_, n), total) => n + total) 0 pairs
 
   fun nonzeroKeys pairs = map (fn (a, _) => a) pairs
-
   end
-
 
 structure Entropy :> sig
               structure H : HISTOGRAM
@@ -41,12 +40,13 @@ structure Entropy :> sig
                   (* a's are repeated but b's are unique, where an a
                      represents an outcome and b represents a student
                      that got that outcome *)
-                  (* if we want to compute the entropy of a single test,
-                     instantiate a with a single outcome; if we want to compute
-                     the entropy of a set of tests, instantiate a with a vector of outcomes *)
-                  (* for each a, the returned histogram counts how many b's have that a *)
-          end =
-  struct
+                  (* if we want to compute the entropy of a single
+                     test, instantiate a with a single outcome; if we
+                     want to compute the entropy of a set of tests,
+                     instantiate a with a vector of outcomes *)
+                  (* for each a, the returned histogram counts how
+                     many b's have that a *)
+          end = struct
     structure H = Histogram
 
     fun impossible s = let exception Impossible of string in raise Impossible s end
@@ -61,8 +61,8 @@ structure Entropy :> sig
     fun histogram pairs =
         let val (outcomes, students) = ListPair.unzip pairs
             val () = if not (allDistinct students)
-                     then  impossible "duplicate students"
-                     else  ()
+                     then impossible "duplicate students"
+                     else ()
         in  foldl H.inc H.zeroes outcomes
         end
 
