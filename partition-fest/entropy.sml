@@ -51,16 +51,9 @@ structure Entropy :> sig
 
     fun impossible s = let exception Impossible of string in raise Impossible s end
 
-    fun member x [] = false
-      | member x (y::ys) = x = y orelse member x ys
-
-    fun allDistinct [] = true
-      | allDistinct (x::xs) = not (member x xs) andalso allDistinct xs
-
-
     fun histogram pairs =
         let val (outcomes, students) = ListPair.unzip pairs
-            val () = if not (allDistinct students)
+            val () = if not (Util.allDistinct students)
                      then impossible "duplicate students"
                      else ()
         in  foldl H.inc H.zeroes outcomes
