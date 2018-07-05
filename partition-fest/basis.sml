@@ -404,31 +404,50 @@ struct
 
   structure NodeMap = BinaryMapFn(type ord_key = G.node
                                   val compare = String.compare)
-  fun renderDistribution g gradesMap =
+
+  fun renderDistribution g =
+      (* Walk backwards from the root to determine the distances *)
       let val root = getRoot g
-          fun getS n = G.getSuccessorNodes (n, g)
-          val distances = addDistances getS root 0 (NodeMap.insert (NodeMap.empty, root, 0))
-          fun renderNodeDistance n = String.concat [G.getNodeLabel n, "->", Int.toString $ valOf $ NodeMap.find (distances, n)]
-      in  String.concatWith "\n" (map renderNodeDistance (G.getNodes g))
+          fun getPred n = G.getSuccessorNodes (n, g)
+          val maxDistance = length $ G.getNodes g
+          val initialDistances = List.foldl
+                                     (fn (n, ds) => NodeMap.insert (ds, n, maxDistance))
+                                     NodeMap.empty
+                                     (G.getNodes g)
+          val distances = addDistances getPred root $ NodeMap.insert (initialDistances, root, 0)
+          fun renderDist n = String.concat [G.getNodeLabel n,
+                                            "->",
+                                            Int.toString $ valOf $ NodeMap.find (distances, n)]
+      in  String.concatWith "\n" (map renderDist (G.getNodes g))
       end
-  and addDistances getS from curDist distances =
-      let val tos = getS from
-          val distances' = List.foldl (addDistance curDist) distances tos
-          fun toDistances (to, ds) = addDistances getS to (curDist + 1) ds
+  and addDistances getPred from distances =
+      let val tos = getPred from
+          val curDist = valOf $ NodeMap.find (distances, from)
+          val distances' = List.foldl (addDistance (curDist + 1)) distances tos
+          fun toDistances (to, ds) = addDistances getPred to ds
       in  List.foldl toDistances distances' tos
       end
-  and addDistance dist (n, ds) =
-      let val d = getOpt (NodeMap.find (ds, n), dist)
-      in  if dist < d
-          then NodeMap.insert (ds, n, dist)
+  and addDistance new (n, ds) =
+      let val current = valOf $ NodeMap.find (ds, n)
+      in  if new < current
+          then NodeMap.insert (ds, n, new)
           else ds
       end
   and getRoot g =
       let val nodes = G.getNodes g
-          fun maximal n = null (G.getSuccessorNodes (n, g))
+          (* Yes: the graph is built s.t. maximal nodes have no
+             predecessors, as opposed to having no successors *)
+          fun maximal n = null (G.getPredecessorNodes (n, g))
       in  case List.filter maximal nodes
            of [r] => r
-            | _ => raise Match
+            | maxs => ( let val len = length maxs
+                            val errmsg = [ "Expected exactly one maximal node; got"
+                                         , Int.toString len ^ ":"
+                                         ] @ maxs
+                        in  eprint $ String.concatWith " " errmsg
+                        end
+                      ; raise Match
+                      )
       end
 
   fun buildGraph infile outfile outfileFailures gradeFile distributionOut flags =
@@ -445,11 +464,10 @@ struct
                            of NONE => Map.empty
                             | SOME f => gradeNodeColors m' (readGrades f)
         val ()         = FileWriter.printSolnGraph g' m' s fd nodeColors
-        val ()         = case (gradeFile, distributionOut)
-                          of (SOME f, SOME out) =>
-                             let val gradesMap = readGrades f
-                             in  TextIO.output (out, renderDistribution g' gradesMap)
-                             end
+        val ()         = case distributionOut
+                          of SOME out => ( TextIO.output (out, renderDistribution g')
+                                         ; TextIO.output (out, "\n")
+                                         )
                            | _ => ()
         val solns      = solnReduction flags (g', m) solns 
         val ()         = FileWriter.printStudentFailures solns ffd
