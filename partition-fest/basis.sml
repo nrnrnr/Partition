@@ -479,10 +479,11 @@ struct
   structure StudentMap = BinaryMapFn(type ord_key = string
                                      val compare = String.compare)
   structure Outcomes = BinarySetFn(type ord_key = (string * int * Outcome.outcome)
-                                     fun compare ((tid1, tnum1, _), (tid2, tnum2, _)) =
-                                         case String.compare (tid1, tid2)
-                                          of EQUAL => Int.compare (tnum1, tnum2)
-                                           | order => order)
+                                   fun compare ((tid1, tnum1, _), (tid2, tnum2, _)) =
+                                       case String.compare (tid1, tid2)
+                                        of EQUAL => Int.compare (tnum1, tnum2)
+                                         | order => order)
+
   fun getAllTests outcomes =
       let fun addTest (tid, tnum, s, outcome, tests) =
               let val tnum = valOf $ Int.fromString tnum
@@ -492,8 +493,8 @@ struct
               end
           val outcomesByStudent = DB.fold addTest StudentMap.empty outcomes
           fun third (_, _, x) = x
-      in  map (fn (sid, outcomes) => (map third $ Outcomes.listItems outcomes, sid))
-              $ StudentMap.listItemsi outcomesByStudent
+      in map (fn (sid, outcomes) => (map (Outcome.toString o third) $ Outcomes.listItems outcomes, sid))
+             $ StudentMap.listItemsi outcomesByStudent
       end
   fun getOneTest tid tnum outcomes =
       let val tnum = Int.toString tnum
@@ -514,14 +515,15 @@ struct
           val () = if null (Entropy.H.nonzeroKeys histogram)
                    then eprint "Warning: no tests found"
                    else ()
-      in  Entropy.entropy histogram
+      in  (Entropy.entropy histogram, length $ Entropy.H.nonzeroKeys histogram)
       end
 
   fun renderEntropy whichTest outcomesPath =
       let val outcomesByTest = withInputFromFile outcomesPath FileReader.readToMap
-          val entropy = case whichTest
-                         of D.AllTests => entropyOf $ getAllTests outcomesByTest
-                          | D.SingleTest (tid, tnum) => entropyOf $ getOneTest tid tnum outcomesByTest
-      in  Real.toString entropy
+          val (entropy, numObserved) =
+              case whichTest
+               of D.AllTests => entropyOf $ getAllTests outcomesByTest
+                | D.SingleTest (tid, tnum) => entropyOf $ getOneTest tid tnum outcomesByTest
+      in  Real.toString entropy ^ " " ^ Int.toString numObserved
       end
 end
