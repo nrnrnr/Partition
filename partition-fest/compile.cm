@@ -55,7 +55,6 @@ group is $/basis.cm
 
   $smlnj-tdp/plugins.cm
 
-  nodemap.sml
   entropy.sml
 
   $/smlnj-lib.cm
