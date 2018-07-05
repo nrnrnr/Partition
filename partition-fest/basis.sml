@@ -1,10 +1,11 @@
 structure Basis : sig
-  val buildGraph : string -> string -> string -> string option ->
+  val buildGraph : string -> string -> string -> string option -> TextIO.outstream option ->
                    string list -> SolnCollection.collection 
   val buildPropGraph : string -> string -> 
                        string list -> Prop.prop list list
   val readGrades : string -> Grade.grade Map.map
   val gradeNodeColors : D.NodeInfo Map.map -> Grade.grade Map.map -> string list Map.map
+  val renderEntropy : D.entropyOpt -> string -> string
 end =
 struct
 
@@ -362,9 +363,9 @@ struct
     end
 
   fun eprint s = TextIO.output (TextIO.stdErr, s ^ "\n")
-  structure G = Grade
+  structure Gr = Grade
   fun gradeNodeColors m gradesMap =
-    let fun gradeFor id0 g0 ids =
+      let fun gradeFor id0 g0 ids =
           let fun loop [] = g0
                 | loop (id::ids) =
                   let val g = Map.lookup (id, gradesMap)
@@ -372,9 +373,9 @@ struct
                             eprint (String.concatWith
                                         " "
                                         [ "Solution", id0, "had grade"
-                                        , G.toString g0
+                                        , Gr.toString g0
                                         , "yet", id, "had grade"
-                                        , G.toString g
+                                        , Gr.toString g
                                         ])
                         else ()
                       ; loop ids
@@ -383,13 +384,13 @@ struct
           in  loop ids
           end
 
-        fun colorFor G.E = "//gray"
-          | colorFor G.VG = "/orrd9/7"
-          | colorFor G.G = "/orrd9/5"
-          | colorFor G.F = "/orrd9/3"
-          | colorFor G.P = "/orrd9/1"
-          | colorFor G.NC = "//white"
-          | colorFor (G.UNKNOWN _) = "//yellow2"
+        fun colorFor Gr.E = "//gray"
+          | colorFor Gr.VG = "/orrd9/7"
+          | colorFor Gr.G = "/orrd9/5"
+          | colorFor Gr.F = "/orrd9/3"
+          | colorFor Gr.P = "/orrd9/1"
+          | colorFor Gr.NC = "//white"
+          | colorFor (Gr.UNKNOWN _) = "//yellow2"
 
         fun colorNode (_, ([], _), _) = raise Impossible (* each label is mapped to n > 0 solution ids *)
           | colorNode (label, (id0::ids, _), colors) =
@@ -401,25 +402,108 @@ struct
     in  Map.mapFold colorNode Map.empty m
     end
 
-  fun buildGraph infile outfile outfileFailures gradeFile flags =
+  structure NodeMap = BinaryMapFn(type ord_key = G.node
+                                  val compare = String.compare)
+  fun renderDistribution g gradesMap =
+      let val root = getRoot g
+          fun getS n = G.getSuccessorNodes (n, g)
+          val distances = addDistances getS root 0 (NodeMap.insert (NodeMap.empty, root, 0))
+          fun renderNodeDistance n = String.concat [G.getNodeLabel n, "->", Int.toString $ valOf $ NodeMap.find (distances, n)]
+      in  String.concatWith "\n" (map renderNodeDistance (G.getNodes g))
+      end
+  and addDistances getS from curDist distances =
+      let val tos = getS from
+          val distances' = List.foldl (addDistance curDist) distances tos
+          fun toDistances (to, ds) = addDistances getS to (curDist + 1) ds
+      in  List.foldl toDistances distances' tos
+      end
+  and addDistance dist (n, ds) =
+      let val d = getOpt (NodeMap.find (ds, n), dist)
+      in  if dist < d
+          then NodeMap.insert (ds, n, dist)
+          else ds
+      end
+  and getRoot g =
+      let val nodes = G.getNodes g
+          fun maximal n = null (G.getSuccessorNodes (n, g))
+      in  case List.filter maximal nodes
+           of [r] => r
+            | _ => raise Match
+      end
+
+  fun buildGraph infile outfile outfileFailures gradeFile distributionOut flags =
     let val tests     = getTestPartitions infile
 	val (g ,m ,p) = buildPropGraphAndMap $ map testRep tests 
 	val tests'    = TestCollectionReduction flags (g, m, p) tests
 
-        val solns     =  anonymize $ makeSolnCollection $ makeSolnMap tests' 
-        val (s, m')   = buildMapAndSet $ partitionSolns solns
-        val g'        = makeGraph s
-        val (fd, ffd) = (TextIO.openOut outfile, 
-                         TextIO.openOut outfileFailures)
+        val solns      = anonymize $ makeSolnCollection $ makeSolnMap tests' 
+        val (s, m')    = buildMapAndSet $ partitionSolns solns
+        val g'         = makeGraph s
+        val (fd, ffd)  = (TextIO.openOut outfile, 
+                          TextIO.openOut outfileFailures)
         val nodeColors = case gradeFile
                            of NONE => Map.empty
                             | SOME f => gradeNodeColors m' (readGrades f)
-        val ()        = FileWriter.printSolnGraph g' m' s fd nodeColors
-        val solns     = solnReduction flags (g', m) solns 
-        val ()        = FileWriter.printStudentFailures solns ffd
-        val _         = (TextIO.closeOut fd;
-                         TextIO.closeOut ffd)
+        val ()         = FileWriter.printSolnGraph g' m' s fd nodeColors
+        val ()         = case (gradeFile, distributionOut)
+                          of (SOME f, SOME out) =>
+                             let val gradesMap = readGrades f
+                             in  TextIO.output (out, renderDistribution g' gradesMap)
+                             end
+                           | _ => ()
+        val solns      = solnReduction flags (g', m) solns 
+        val ()         = FileWriter.printStudentFailures solns ffd
+        val _          = (TextIO.closeOut fd;
+                          TextIO.closeOut ffd)
     in solns
-    end                              
+    end
 
+  structure StudentMap = BinaryMapFn(type ord_key = string
+                                     val compare = String.compare)
+  structure Outcomes = BinarySetFn(type ord_key = (string * int * Outcome.outcome)
+                                     fun compare ((tid1, tnum1, _), (tid2, tnum2, _)) =
+                                         case String.compare (tid1, tid2)
+                                          of EQUAL => Int.compare (tnum1, tnum2)
+                                           | order => order)
+  fun getAllTests outcomes =
+      let fun addTest (tid, tnum, s, outcome, tests) =
+              let val tnum = valOf $ Int.fromString tnum
+                  val sTests = getOpt (StudentMap.find (tests, s), Outcomes.empty)
+                  val sTests = Outcomes.add (sTests, (tid, tnum, outcome))
+              in  StudentMap.insert (tests, s, sTests)
+              end
+          val outcomesByStudent = DB.fold addTest StudentMap.empty outcomes
+          fun third (_, _, x) = x
+      in  map (fn (sid, outcomes) => (map third $ Outcomes.listItems outcomes, sid))
+              $ StudentMap.listItemsi outcomesByStudent
+      end
+  fun getOneTest tid tnum outcomes =
+      let val tnum = Int.toString tnum
+          fun addTest (tid', tnum', student, outcome, testsSoFar) =
+              if tid' = tid andalso tnum' = tnum
+              then (outcome, student) :: testsSoFar
+              else testsSoFar
+      in  DB.fold addTest [] outcomes
+      end
+
+  fun withInputFromFile path f =
+      let val is = TextIO.openIn path
+      in  f is before TextIO.closeIn is
+      end
+
+  fun entropyOf tests =
+      let val histogram = Entropy.histogram tests
+          val () = if null (Entropy.H.nonzeroKeys histogram)
+                   then eprint "Warning: no tests found"
+                   else ()
+      in  Entropy.entropy histogram
+      end
+
+  fun renderEntropy whichTest outcomesPath =
+      let val outcomesByTest = withInputFromFile outcomesPath FileReader.readToMap
+          val entropy = case whichTest
+                         of D.AllTests => entropyOf $ getAllTests outcomesByTest
+                          | D.SingleTest (tid, tnum) => entropyOf $ getOneTest tid tnum outcomesByTest
+      in  Real.toString entropy
+      end
 end

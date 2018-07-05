@@ -51,6 +51,10 @@ group is $/basis.cm
   partition.sml
   smlnj-partition.sml
 
-  $qcheck/qcheck.cm
+  smaller-qcheck.cm
 
   $smlnj-tdp/plugins.cm
+
+  entropy.sml
+
+  $/smlnj-lib.cm

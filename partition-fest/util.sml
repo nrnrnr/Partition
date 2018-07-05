@@ -11,6 +11,9 @@ signature UTILITIES = sig
   val vcomparePartial : ('a * 'a -> order option) -> 'a list * 'a list -> order option
   val flatten  : 'a list list -> 'a list
   val dropWhile : ('a -> bool) -> 'a list -> 'a list
+  val member : ''a -> ''a list -> bool
+  val allDistinct : ''a list -> bool
+  val allSame : ''a list -> bool
 end
 
 structure Util : UTILITIES = struct
@@ -55,4 +58,13 @@ fun flatten [] = []
 fun dropWhile p [] = []
   | dropWhile p (c::cs) = if p c then dropWhile p cs
                           else c :: cs
+fun member x [] = false
+  | member x (y::ys) = x = y orelse member x ys
+
+fun allDistinct [] = true
+  | allDistinct (x::xs) = not (member x xs) andalso allDistinct xs
+fun allSame [] = true
+  | allSame [x] = true
+  | allSame (x0::x1::xs) = x0 = x1 andalso allSame (x1 :: xs)
+
 end

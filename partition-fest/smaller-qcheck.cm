@@ -1,0 +1,7 @@
+(* HT stackoverflow.com/a/34747897/168645 *)
+group
+  library($qcheck/qcheck.cm)
+  - (signature QUEUE
+     structure Queue)
+is
+  $qcheck/qcheck.cm
