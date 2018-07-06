@@ -70,10 +70,14 @@ structure Partition = struct
           else raise BadOption ("For single tests, the tnum must be nonnegative; got '" ^ Int.toString tnum ^ "'")
         | NONE => raise BadOption ("For single tests, the tnum must be an integer; got '" ^ tnum ^ "'")
 
+
+  fun perfect outcomes = List.all (fn out => out = OutcomeSingle.PASSED) outcomes
+
   fun entropyOptions argv =
       let fun eat (options', "-t" :: tid :: tnum :: argv) = eat (checkSingleTest tid tnum :: options', argv)
             | eat (options', "--single" :: tid :: tnum :: argv) = eat (checkSingleTest tid tnum :: options', argv)
-            | eat (options', "--all" :: argv) = eat (D.AllTests :: options', argv)
+            | eat (options', "--all" :: argv) = eat (D.AllTests (fn x => true) :: options', argv)
+            | eat (options', "--all-imperfect" :: argv) = (D.AllTests (not o perfect) :: options', argv)
             | eat (options', argv) = (options', argv)
           val (options', argv) = eat ([], argv)
       in  (rev options', argv)
@@ -86,9 +90,9 @@ structure Partition = struct
   fun doEntropy (prog, argv) =
       (case entropyOptions argv
         of ([whichTest], [outcomes]) => success (Basis.renderEntropy whichTest outcomes ^ "\n")
-         | ([], [outcomes]) => success (Basis.renderEntropy D.AllTests outcomes ^ "\n")
+         | ([], [outcomes]) => success (Basis.renderEntropy (D.AllTests (fn x => true)) outcomes ^ "\n")
          | (options, argv) =>
-           ( app eprint ["Usage: ", prog, " entropy [--single tid tnum | --all] outcomes\n"]
+           ( app eprint ["Usage: ", prog, " entropy [--single tid tnum | --all | --all-imperfect] outcomes\n"]
            ; eprint "Got these args:" ; app (fn s => app eprint [" ", s]) argv
            ; eprint "\n"
            ; OS.Process.failure
@@ -97,10 +101,10 @@ structure Partition = struct
 
   fun run (prog, argv) =
       let val (mode, argv) =
-              (case argv
-                of ("partition" :: argv') => (doPartition, argv')
-                 | ("entropy" :: argv') => (doEntropy, argv')
-                 | _ => (doPartition, argv))
+              case argv
+               of ("partition" :: argv) => (doPartition, argv)
+                | ("entropy" :: argv) => (doEntropy, argv)
+                | _ => (doPartition, argv)
       in  mode (prog, argv)
       end
 end

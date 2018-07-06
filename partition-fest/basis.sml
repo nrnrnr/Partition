@@ -484,15 +484,19 @@ struct
                                         of EQUAL => Int.compare (tnum1, tnum2)
                                          | order => order)
 
-  fun getAllTests outcomes =
+  fun getAllTests outcomes filter =
       let fun addTest (tid, tnum, s, outcome, tests) =
               let val tnum = valOf $ Int.fromString tnum
                   val sTests = getOpt (StudentMap.find (tests, s), Outcomes.empty)
                   val sTests = Outcomes.add (sTests, (tid, tnum, outcome))
               in  StudentMap.insert (tests, s, sTests)
               end
-          val outcomesByStudent = DB.fold addTest StudentMap.empty outcomes
           fun third (_, _, x) = x
+          val outcomesByStudent = DB.fold addTest StudentMap.empty outcomes
+          (* filter is predicate on Outcome.outcome list, so there's some ceremony
+             to convert an Outcomes.item list to an Outcome.outcome list *)
+          val filter = filter o (map third) o Outcomes.listItems
+          val outcomesByStudent = StudentMap.filter filter outcomesByStudent
       in map (fn (sid, outcomes) => (map (Outcome.toString o third) $ Outcomes.listItems outcomes, sid))
              $ StudentMap.listItemsi outcomesByStudent
       end
@@ -522,8 +526,14 @@ struct
       let val outcomesByTest = withInputFromFile outcomesPath FileReader.readToMap
           val (entropy, numObserved) =
               case whichTest
-               of D.AllTests => entropyOf $ getAllTests outcomesByTest
+               of D.AllTests filter => entropyOf $ getAllTests outcomesByTest filter
                 | D.SingleTest (tid, tnum) => entropyOf $ getOneTest tid tnum outcomesByTest
-      in  Real.toString entropy ^ " " ^ Int.toString numObserved
+          fun toString r =
+              let val (sign, r) = if Real.signBit r
+                                  then ("-", ~ r)
+                                  else ("", r)
+              in  sign ^ Real.toString r
+              end
+      in  toString entropy ^ " " ^ Int.toString numObserved
       end
 end
