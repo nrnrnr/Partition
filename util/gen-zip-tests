@@ -1,0 +1,27 @@
+#!/usr/bin/env ksh
+PARTITION=$(dirname $(dirname $0))
+TESTGEN="$PARTITION/testgen/"
+BASE="$(basename "$0")"
+function usage {
+    echo "Usage: $BASE N"
+}
+
+case $1 in
+    +([0-9])) N=$1 ;;
+    *) usage; exit 1 ;;
+esac
+
+gen=$TESTGEN/dist/build/testgen/testgen
+solution="$(cat $SERVER105/www/solutions/scheme.zip+unzip)"
+mktests=$($gen --test zip --size 15 --suitesize $N | awk '{ printf "(mktest %s)\n", $0 }')
+scm=$(cat <<EOF
+$solution
+(define mktest (xs ys)
+  (list4 'check-expect
+         (list5 'zip '# xs '# ys)
+         '# (zip xs ys)))
+$mktests
+EOF
+)
+
+echo "$scm" | uscheme -q | sed "s/# /'/g" | grep 'check-expect'

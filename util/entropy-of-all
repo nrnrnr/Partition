@@ -1,0 +1,15 @@
+#!/usr/bin/env ksh -e
+PARTITION=$(dirname $(dirname $0))
+ENTROPY="sml @SMLload=$(ls $PARTITION/partition-fest/rank.*) entropy"
+
+opt=--all
+case $1 in
+    --all|--all-imperfect) opt=$1 ; shift ;;
+    *)                     break ;;
+esac
+
+for o; do
+  $ENTROPY $opt $o | read e total
+  printf "%7f %d $o\n" $e $total
+done
+

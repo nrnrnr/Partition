@@ -15,3 +15,6 @@ partition-fest/causes
 essay/avg
 tmp
 .cm
+.cabal-sandbox
+cabal.sandbox.config
+testgen/dist/
