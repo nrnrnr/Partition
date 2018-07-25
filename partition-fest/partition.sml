@@ -76,6 +76,7 @@ structure Partition = struct
   fun entropyOptions argv =
       let fun eat (options', "-t" :: tid :: tnum :: argv) = eat (checkSingleTest tid tnum :: options', argv)
             | eat (options', "--single" :: tid :: tnum :: argv) = eat (checkSingleTest tid tnum :: options', argv)
+            | eat (options', "--individual" :: argv) = eat (D.IndividualTests :: options', argv)
             | eat (options', "--all" :: argv) = eat (D.AllTests (fn x => true) :: options', argv)
             | eat (options', "--all-imperfect" :: argv) = (D.AllTests (not o perfect) :: options', argv)
             | eat (options', argv) = (options', argv)
@@ -92,7 +93,7 @@ structure Partition = struct
         of ([whichTest], [outcomes]) => success (Basis.renderEntropy whichTest outcomes ^ "\n")
          | ([], [outcomes]) => success (Basis.renderEntropy (D.AllTests (fn x => true)) outcomes ^ "\n")
          | (options, argv) =>
-           ( app eprint ["Usage: ", prog, " entropy [--single tid tnum | --all | --all-imperfect] outcomes\n"]
+           ( app eprint ["Usage: ", prog, " entropy [--single tid tnum | --all | --all-imperfect | --individual] outcomes\n"]
            ; eprint "Got these args:" ; app (fn s => app eprint [" ", s]) argv
            ; eprint "\n"
            ; OS.Process.failure

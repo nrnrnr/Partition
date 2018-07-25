@@ -504,7 +504,7 @@ struct
       let val tnum = Int.toString tnum
           fun addTest (tid', tnum', student, outcome, testsSoFar) =
               if tid' = tid andalso tnum' = tnum
-              then (outcome, student) :: testsSoFar
+              then (Outcome.toString outcome, student) :: testsSoFar
               else testsSoFar
       in  DB.fold addTest [] outcomes
       end
@@ -522,12 +522,34 @@ struct
       in  (Entropy.entropy histogram, length $ Entropy.H.nonzeroKeys histogram)
       end
 
-  fun renderEntropy whichTest outcomesPath =
+  structure Tmarks = BinarySetFn(type ord_key = (string * int)
+                                 fun compare ((tid1, tnum1), (tid2, tnum2)) =
+                                     case String.compare (tid1, tid2)
+                                       of EQUAL => Int.compare (tnum1, tnum2)
+                                       | order => order)
+  fun tmarksOfDb db =
+      let fun addTmark (tid, tnum, _, tmarks) = Tmarks.add (tmarks, (tid, valOf $ Int.fromString tnum))
+      in  DB.foldStudents addTmark Tmarks.empty db
+      end
+
+  fun renderEntropy D.IndividualTests outcomesPath =
+      let val outcomesByTest = withInputFromFile outcomesPath FileReader.readToMap
+          val tmarks = tmarksOfDb outcomesByTest
+          fun renderIndividual (tmark as (tid, tnum)) =
+              String.concatWith " " [ tid
+                                    , Int.toString tnum
+                                    , "--"
+                                    , renderEntropy (D.SingleTest tmark) outcomesPath
+                                    ]
+      in  String.concatWith "\n" $ map renderIndividual $ Tmarks.listItems tmarks
+      end
+    | renderEntropy whichTest outcomesPath =
       let val outcomesByTest = withInputFromFile outcomesPath FileReader.readToMap
           val (entropy, numObserved) =
               case whichTest
                of D.AllTests filter => entropyOf $ getAllTests outcomesByTest filter
                 | D.SingleTest (tid, tnum) => entropyOf $ getOneTest tid tnum outcomesByTest
+                | _  => raise Impossible
           fun toString r =
               let val (sign, r) = if Real.signBit r
                                   then ("-", ~ r)

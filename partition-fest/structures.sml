@@ -42,6 +42,7 @@ structure Data = struct
     type NodeInfo = (string list * string)
     exception InvalidUtln of string
     datatype entropyOpt = SingleTest of (string * int)
-           | AllTests of (Outcome.outcome list -> bool)
+                        | AllTests of (Outcome.outcome list -> bool)
+                        | IndividualTests
 end
 structure D = Data
