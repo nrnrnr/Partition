@@ -532,20 +532,18 @@ struct
       in  DB.foldStudents addTmark Tmarks.empty db
       end
 
-  fun renderEntropy D.IndividualTests outcomesPath =
-      let val outcomesByTest = withInputFromFile outcomesPath FileReader.readToMap
-          val tmarks = tmarksOfDb outcomesByTest
+  fun renderEntropyOf D.IndividualTests outcomesByTest =
+      let val tmarks = tmarksOfDb outcomesByTest
           fun renderIndividual (tmark as (tid, tnum)) =
               String.concatWith " " [ tid
                                     , Int.toString tnum
                                     , "--"
-                                    , renderEntropy (D.SingleTest tmark) outcomesPath
+                                    , renderEntropyOf (D.SingleTest tmark) outcomesByTest
                                     ]
       in  String.concatWith "\n" $ map renderIndividual $ Tmarks.listItems tmarks
       end
-    | renderEntropy whichTest outcomesPath =
-      let val outcomesByTest = withInputFromFile outcomesPath FileReader.readToMap
-          val (entropy, numObserved) =
+    | renderEntropyOf whichTest outcomesByTest =
+      let val (entropy, numObserved) =
               case whichTest
                of D.AllTests filter => entropyOf $ getAllTests outcomesByTest filter
                 | D.SingleTest (tid, tnum) => entropyOf $ getOneTest tid tnum outcomesByTest
@@ -558,4 +556,7 @@ struct
               end
       in  toString entropy ^ " " ^ Int.toString numObserved
       end
+
+  fun renderEntropy whichTest outcomesPath =
+      withInputFromFile outcomesPath (renderEntropyOf whichTest o FileReader.readToMap)
 end
