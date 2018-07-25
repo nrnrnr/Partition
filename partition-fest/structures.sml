@@ -44,5 +44,26 @@ structure Data = struct
     datatype entropyOpt = SingleTest of (string * int)
                         | AllTests of (Outcome.outcome list -> bool)
                         | IndividualTests
-end
+  end
 structure D = Data
+
+structure BasicStringKey : ORD_KEY = struct
+    type ord_key = string
+    val compare = String.compare
+  end
+structure SolutionKey : ORD_KEY = BasicStringKey
+
+structure TmarkKey : ORD_KEY = struct
+    type ord_key = (string * int)
+    fun compare ((tid1, tnum1), (tid2, tnum2)) =
+        case String.compare (tid1, tid2)
+         of EQUAL => Int.compare (tnum1, tnum2)
+          | order => order
+  end
+structure TestResultKey : ORD_KEY = struct
+    type ord_key = (string * int * Outcome.outcome)
+    fun compare ((tid1, tnum1, _), (tid2, tnum2, _)) =
+        case String.compare (tid1, tid2)
+         of EQUAL => Int.compare (tnum1, tnum2)
+          | order => order
+  end

@@ -14,6 +14,7 @@ signature UTILITIES = sig
   val member : ''a -> ''a list -> bool
   val allDistinct : ''a list -> bool
   val allSame : ''a list -> bool
+  val withInputFromFile : string -> (TextIO.instream -> 'b) -> 'b
 end
 
 structure Util : UTILITIES = struct
@@ -66,5 +67,10 @@ fun allDistinct [] = true
 fun allSame [] = true
   | allSame [x] = true
   | allSame (x0::x1::xs) = x0 = x1 andalso allSame (x1 :: xs)
+
+fun withInputFromFile path f =
+    let val is = TextIO.openIn path
+    in  f is before TextIO.closeIn is
+    end
 
 end

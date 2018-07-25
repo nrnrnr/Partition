@@ -56,5 +56,7 @@ group is $/basis.cm
   $smlnj-tdp/plugins.cm
 
   entropy.sml
+  decisiontree.sml
+  testutil.sml
 
   $/smlnj-lib.cm

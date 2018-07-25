@@ -51,6 +51,8 @@ output.sml
 input.sml
 
 entropy.sml
+testutil.sml
+decisiontree.sml
 
 basis.sml
 

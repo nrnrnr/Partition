@@ -476,43 +476,6 @@ struct
     in solns
     end
 
-  structure StudentMap = BinaryMapFn(type ord_key = string
-                                     val compare = String.compare)
-  structure Outcomes = BinarySetFn(type ord_key = (string * int * Outcome.outcome)
-                                   fun compare ((tid1, tnum1, _), (tid2, tnum2, _)) =
-                                       case String.compare (tid1, tid2)
-                                        of EQUAL => Int.compare (tnum1, tnum2)
-                                         | order => order)
-
-  fun getAllTests outcomes filter =
-      let fun addTest (tid, tnum, s, outcome, tests) =
-              let val tnum = valOf $ Int.fromString tnum
-                  val sTests = getOpt (StudentMap.find (tests, s), Outcomes.empty)
-                  val sTests = Outcomes.add (sTests, (tid, tnum, outcome))
-              in  StudentMap.insert (tests, s, sTests)
-              end
-          fun third (_, _, x) = x
-          val outcomesByStudent = DB.fold addTest StudentMap.empty outcomes
-          (* filter is predicate on Outcome.outcome list, so there's some ceremony
-             to convert an Outcomes.item list to an Outcome.outcome list *)
-          val filter = filter o (map third) o Outcomes.listItems
-          val outcomesByStudent = StudentMap.filter filter outcomesByStudent
-      in map (fn (sid, outcomes) => (map (Outcome.toString o third) $ Outcomes.listItems outcomes, sid))
-             $ StudentMap.listItemsi outcomesByStudent
-      end
-  fun getOneTest tid tnum outcomes =
-      let val tnum = Int.toString tnum
-          fun addTest (tid', tnum', student, outcome, testsSoFar) =
-              if tid' = tid andalso tnum' = tnum
-              then (Outcome.toString outcome, student) :: testsSoFar
-              else testsSoFar
-      in  DB.fold addTest [] outcomes
-      end
-
-  fun withInputFromFile path f =
-      let val is = TextIO.openIn path
-      in  f is before TextIO.closeIn is
-      end
 
   fun entropyOf tests =
       let val histogram = Entropy.histogram tests
@@ -522,31 +485,21 @@ struct
       in  (Entropy.entropy histogram, length $ Entropy.H.nonzeroKeys histogram)
       end
 
-  structure Tmarks = BinarySetFn(type ord_key = (string * int)
-                                 fun compare ((tid1, tnum1), (tid2, tnum2)) =
-                                     case String.compare (tid1, tid2)
-                                       of EQUAL => Int.compare (tnum1, tnum2)
-                                       | order => order)
-  fun tmarksOfDb db =
-      let fun addTmark (tid, tnum, _, tmarks) = Tmarks.add (tmarks, (tid, valOf $ Int.fromString tnum))
-      in  DB.foldStudents addTmark Tmarks.empty db
-      end
-
   fun renderEntropyOf D.IndividualTests outcomesByTest =
-      let val tmarks = tmarksOfDb outcomesByTest
+      let val tmarks = TestUtil.tmarksOfDb outcomesByTest
           fun renderIndividual (tmark as (tid, tnum)) =
               String.concatWith " " [ tid
                                     , Int.toString tnum
                                     , "--"
                                     , renderEntropyOf (D.SingleTest tmark) outcomesByTest
                                     ]
-      in  String.concatWith "\n" $ map renderIndividual $ Tmarks.listItems tmarks
+      in  String.concatWith "\n" $ map renderIndividual $ tmarks
       end
     | renderEntropyOf whichTest outcomesByTest =
       let val (entropy, numObserved) =
               case whichTest
-               of D.AllTests filter => entropyOf $ getAllTests outcomesByTest filter
-                | D.SingleTest (tid, tnum) => entropyOf $ getOneTest tid tnum outcomesByTest
+               of D.AllTests filter => entropyOf $ TestUtil.getAllTests outcomesByTest filter
+                | D.SingleTest (tid, tnum) => entropyOf $ TestUtil.getOneTest tid tnum outcomesByTest
                 | _  => raise Impossible
           fun toString r =
               let val (sign, r) = if Real.signBit r
@@ -558,5 +511,5 @@ struct
       end
 
   fun renderEntropy whichTest outcomesPath =
-      withInputFromFile outcomesPath (renderEntropyOf whichTest o FileReader.readToMap)
+      Util.withInputFromFile outcomesPath (renderEntropyOf whichTest o FileReader.readToMap)
 end

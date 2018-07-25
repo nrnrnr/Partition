@@ -1,5 +1,7 @@
 structure Partition = struct
 
+  infixr 0 $
+  fun f $ x = f x
   fun eprint s = TextIO.output(TextIO.stdErr, s)      
 
   datatype opt
@@ -84,14 +86,14 @@ structure Partition = struct
       in  (rev options', argv)
       end
 
-  fun success s = ( TextIO.output (TextIO.stdOut, s)
+  fun success s = ( TextIO.output (TextIO.stdOut, s ^ "\n")
                   ; OS.Process.success
                   )
 
   fun doEntropy (prog, argv) =
       (case entropyOptions argv
-        of ([whichTest], [outcomes]) => success (Basis.renderEntropy whichTest outcomes ^ "\n")
-         | ([], [outcomes]) => success (Basis.renderEntropy (D.AllTests (fn x => true)) outcomes ^ "\n")
+        of ([whichTest], [outcomes]) => success (Basis.renderEntropy whichTest outcomes)
+         | ([], [outcomes]) => success (Basis.renderEntropy (D.AllTests (fn x => true)) outcomes)
          | (options, argv) =>
            ( app eprint ["Usage: ", prog, " entropy [--single tid tnum | --all | --all-imperfect | --individual] outcomes\n"]
            ; eprint "Got these args:" ; app (fn s => app eprint [" ", s]) argv
@@ -100,11 +102,24 @@ structure Partition = struct
       ))
       handle BadOption s => (app eprint [s, "\n"] ; OS.Process.failure)
 
+  fun doTree (prog, [outcomes]) =
+      let val makeTree = TestResultDecisionTree.make o FileReader.readToMap
+          val tree = Util.withInputFromFile outcomes makeTree
+      in  success $ String.concatWith "\n" $ TestResultDecisionTree.labeledDecisions tree
+      end
+    | doTree (prog, argv) =
+      ( eprint (String.concatWith " " ["Usage:", prog, "decision-tree outcomes\n"])
+      ; eprint "Got these args : "; app (fn s => app eprint [" ", s]) argv
+      ; eprint "\n"
+      ; OS.Process.failure
+      )
+
   fun run (prog, argv) =
       let val (mode, argv) =
               case argv
                of ("partition" :: argv) => (doPartition, argv)
                 | ("entropy" :: argv) => (doEntropy, argv)
+                | ("decision-tree" :: argv) => (doTree, argv)
                 | _ => (doPartition, argv)
       in  mode (prog, argv)
       end
