@@ -10,6 +10,7 @@ structure TestResultDecisionTree :> sig
 
               val make : DB.db -> decisionTree
               val labeledDecisions : decisionTree -> string list
+              val toDot : decisionTree -> string
           end
 = struct
   exception Invariant of string
@@ -96,5 +97,13 @@ structure TestResultDecisionTree :> sig
     | labeledDecisions (Branch (label, decision, trees)) =
       let val subdecisions = map (fn (_, tree) => labeledDecisions tree) trees
       in  label :: List.concat subdecisions
+      end
+
+  exception TODO
+  fun toDot tree =
+      let val counter = ref 0
+          fun branch fromId tmark label entropy subTrees = raise TODO
+          fun leaf fromId  = raise TODO
+      in  raise TODO
       end
 end

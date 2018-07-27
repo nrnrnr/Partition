@@ -52,6 +52,7 @@ input.sml
 
 entropy.sml
 testutil.sml
+dot.sml
 decisiontree.sml
 
 basis.sml
