@@ -15,6 +15,7 @@ signature UTILITIES = sig
   val allDistinct : ''a list -> bool
   val allSame : ''a list -> bool
   val withInputFromFile : string -> (TextIO.instream -> 'b) -> 'b
+  val renderSolutionIdsNarrow : string list -> string
 end
 
 structure Util : UTILITIES = struct
@@ -71,6 +72,17 @@ fun allSame [] = true
 fun withInputFromFile path f =
     let val is = TextIO.openIn path
     in  f is before TextIO.closeIn is
+    end
+
+fun renderSolutionIdsNarrow sIds =
+    let val sIds = Vector.fromList sIds
+        val len = Vector.length sIds
+        fun renderId (i, id, s) =
+            case ((i+1) mod 5, len - i - 1)
+             of (_, 0) => id ^ s
+              | (0, _) => id ^ "\\n" ^ s
+              | _ => id ^ ", " ^ s
+    in  Vector.foldri renderId "" sIds
     end
 
 end

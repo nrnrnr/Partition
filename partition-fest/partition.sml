@@ -105,7 +105,7 @@ structure Partition = struct
   fun doTree (prog, [outcomes]) =
       let val makeTree = TestResultDecisionTree.make o FileReader.readToMap
           val tree = Util.withInputFromFile outcomes makeTree
-      in  success $ String.concatWith "\n" $ TestResultDecisionTree.labeledDecisions tree
+      in  success $ Dot.toString $ TestResultDecisionTree.toDot tree
       end
     | doTree (prog, argv) =
       ( eprint (String.concatWith " " ["Usage:", prog, "decision-tree outcomes\n"])

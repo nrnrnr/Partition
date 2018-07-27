@@ -10,6 +10,7 @@ structure TestResultDecisionTree :> sig
 
               val make : DB.db -> decisionTree
               val labeledDecisions : decisionTree -> string list
+              val toDot : decisionTree -> Dot.graph
           end
 = struct
   exception Invariant of string
@@ -73,8 +74,7 @@ structure TestResultDecisionTree :> sig
                    val subdecisions = map subdecisionsOf $ StringMap.listItemsi solutionsByOutcome
                    fun label outcomes = String.concatWith " " [ tid
                                                               , Int.toString tnum
-                                                              , String.concatWith "," outcomes
-                                                              , "(" ^ Real.toString entropy ^ ")"
+                                                              , "(" ^ Real.fmt (StringCvt.FIX $ SOME 3) entropy ^ ")"
                                                               ]
 
                in  case map (fn (out, _) => out) $ StringMap.listItemsi solutionsByOutcome
@@ -96,5 +96,44 @@ structure TestResultDecisionTree :> sig
     | labeledDecisions (Branch (label, decision, trees)) =
       let val subdecisions = map (fn (_, tree) => labeledDecisions tree) trees
       in  label :: List.concat subdecisions
+      end
+
+  fun toDot tree =
+      let val nextName =
+              (* The Dot library /could/ optionally name the nodes for
+                 us, with each edge built from the nodes at each end
+               *)
+              let val lastUsed = ref ~1
+              in  fn () => let val next = !lastUsed + 1
+                           in  ( lastUsed := next
+                               ; "N" ^ Int.toString next
+                               )
+                           end
+              end
+          fun toDot fromName (Leaf sIds) =
+              let val name = nextName ()
+                  val label = Util.renderSolutionIdsNarrow sIds
+              in  ( [ Dot.node { name = name, label = label } ]
+                  , [ Dot.edge { from = fromName, to = name } ]
+                  )
+              end
+            | toDot fromName (Branch (label, _, subtrees)) =
+              let val branchName = nextName ()
+                  fun subtreeToDot (subdecision, t)  =
+                      let val subtreeName = nextName ()
+                          val (ns, es) = toDot subtreeName t
+                      in  ( Dot.node { name = subtreeName, label = getOpt (subdecision, "") } :: ns
+                          , Dot.edge { from = branchName, to = subtreeName } :: es
+                          )
+                      end
+                  fun appendGraphs ((ns0, es0), (ns, es)) = (foldr op :: ns ns0, foldr op :: es es0)
+                  val (ns, es) = foldr appendGraphs ([], []) $ map subtreeToDot subtrees
+              in  ( Dot.node { name = branchName, label = label } :: ns
+                  , Dot.edge { from = fromName, to = branchName } :: es
+                  )
+              end
+          val startName = "S"
+          val (ns, es) = toDot startName tree
+      in  (Dot.node { name = startName, label = "S" } :: ns, es)
       end
 end
