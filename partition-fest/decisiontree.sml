@@ -110,30 +110,29 @@ structure TestResultDecisionTree :> sig
                                )
                            end
               end
-          fun toDot fromName (Leaf sIds) =
+          fun toDot mkInEdge (Leaf sIds) =
               let val name = nextName ()
                   val label = Util.renderSolutionIdsNarrow sIds
               in  ( [ Dot.node { name = name, label = label } ]
-                  , [ Dot.edge { from = fromName, to = name } ]
+                  , [ mkInEdge name ]
                   )
               end
-            | toDot fromName (Branch (label, _, subtrees)) =
+            | toDot mkInEdge (Branch (label, _, subtrees)) =
               let val branchName = nextName ()
                   fun subtreeToDot (subdecision, t)  =
-                      let val subtreeName = nextName ()
-                          val (ns, es) = toDot subtreeName t
-                      in  ( Dot.node { name = subtreeName, label = getOpt (subdecision, "") } :: ns
-                          , Dot.edge { from = branchName, to = subtreeName } :: es
-                          )
+                      let fun mkSubtreeInEdge to =
+                              let val e = Dot.edge { from = branchName, to = to }
+                              in  Dot.edgeWithAttrs e [("label", getOpt (subdecision, ""))]
+                              end
+                      in toDot mkSubtreeInEdge t
                       end
-                  fun appendGraphs ((ns0, es0), (ns, es)) = (foldr op :: ns ns0, foldr op :: es es0)
-                  val (ns, es) = foldr appendGraphs ([], []) $ map subtreeToDot subtrees
+                  val (ns, es) = foldr Dot.appendGraphs ([], []) $ map subtreeToDot subtrees
               in  ( Dot.node { name = branchName, label = label } :: ns
-                  , Dot.edge { from = fromName, to = branchName } :: es
+                  , mkInEdge branchName :: es
                   )
               end
           val startName = "S"
-          val (ns, es) = toDot startName tree
+          val (ns, es) = toDot (fn to => Dot.edge { from = startName , to = to }) tree
       in  (Dot.node { name = startName, label = "S" } :: ns, es)
       end
 end
