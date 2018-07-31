@@ -45,14 +45,31 @@ structure Dot :> sig
       end
     | edgeString (Edge {from, to, attrs = _}) = from ^ " -> " ^ to
   fun toString (nodes, edges) =
-      String.concatWith "\n" $
-                        [ "digraph testgraph { fontsize=\"9\""
-                        , "size=\"10.3,7.7\"; ratio=compress"
-                        , "node [fontsize=\"9\"]"
-                        , "edge [fontsize=\"9\"]"
-                        ]
-                        @ map nodeString nodes
-                        @ map edgeString edges
-                        @ ["}"]
+      let val nodeCount = length nodes
+          val (width, height) = if nodeCount < 7
+                                then (3.0, 3.0)
+                                else if nodeCount < 10
+                                then (3.5, 3.5)
+                                else if nodeCount < 15
+                                then (5.0, 4.0)
+                                else if nodeCount < 20
+                                then (6.0, 5.0)
+                                else if nodeCount < 25
+                                then (7.0, 6.0)
+                                else if nodeCount < 30
+                                then (8.0, 7.0)
+                                else (10.0, 8.0)
+          val fmt = Real.fmt (StringCvt.FIX $ SOME 3)
+          val size = fmt width ^ "," ^ fmt height
+      in String.concatWith "\n" $
+                           [ "digraph testgraph { fontsize=\"9\""
+                           , "size=\"" ^ size ^ "\"; ratio=compress"
+                           , "node [fontsize=\"9\"]"
+                           , "edge [fontsize=\"9\"]"
+                           ]
+                           @ map nodeString nodes
+                           @ map edgeString edges
+                           @ ["}"]
+      end
   fun appendGraphs ((ns0, es0), (ns, es)) = (foldr op :: ns ns0, foldr op :: es es0)
   end
