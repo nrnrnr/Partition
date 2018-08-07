@@ -116,7 +116,8 @@ structure TestResultDecisionTree :> sig
           fun toDot mkInEdge (Leaf sIds) =
               let val name = nextName ()
                   val label = Util.renderSolutionIdsNarrow sIds
-              in  ( [ Dot.node { name = name, label = label } ]
+                  val n = Dot.node { name = name, label = label }
+              in  ( [ Dot.nodeWithAttrs n [("shape", "oval")] ]
                   , [ mkInEdge name ]
                   )
               end
@@ -128,18 +129,21 @@ structure TestResultDecisionTree :> sig
                               let val e = Dot.edge { from = branchName, to = to }
                               in  Dot.edgeWithAttrs e [ ("label", getOpt (subdecision, ""))
                                                       , ("penwidth", fmtReal $ edgeWidth entropy)
+                                                      , ("color", "gray50")
                                                       ]
                               end
                       in toDot mkSubtreeInEdge t
                       end
+                  val n = Dot.node { name = branchName, label = label }
                   val (ns, es) = foldr Dot.appendGraphs ([], []) $ map subtreeToDot subtrees
-              in  ( Dot.node { name = branchName, label = label } :: ns
+              in  ( Dot.nodeWithAttrs n [("shape", "rect")] :: ns
                   , mkInEdge branchName :: es
                   )
               end
           val startName = "S"
+          val start = Dot.node { name = startName, label = "S" }
           val (ns, es) = toDot (fn to => Dot.edge { from = startName , to = to }) tree
-      in  (Dot.node { name = startName, label = "S" } :: ns, es)
+      in  (Dot.nodeWithAttrs start [("style", "invis")] :: ns, es)
       end
-  and edgeWidth entropy = entropy * 2.0
+  and edgeWidth entropy = entropy * 2.5
 end
