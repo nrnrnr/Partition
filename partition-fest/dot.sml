@@ -6,6 +6,7 @@ structure Dot :> sig
               val node : {name : string, label : string} -> node
               val edge : {from : string, to : string} -> edge
               val edgeWithAttrs : edge -> (string * string) list -> edge
+              val nodeWithAttrs : node -> (string * string) list -> node
               val toString : graph -> string
               val appendGraphs : (graph * graph) -> graph
           end
@@ -14,17 +15,29 @@ structure Dot :> sig
   infixr 0 $
   fun f $ x = f x
 
-  datatype node = Node of {name : string, label : string}
-  datatype edge = Edge of {from : string, to : string, attrs : (string * string) list option}
+  datatype node' = Node of {name : string, label : string}
+  datatype edge' = Edge of {from : string, to : string}
+
+  (* maybe withAttrs doesn't need the option---I'm not sure if we need
+     to distinguish between the empty list of attributes and no
+     attributes
+   *)
+  type 'a withAttrs = ('a * (string * string) list option)
+  type node = node' withAttrs
+  type edge = edge' withAttrs
 
   type graph = (node list * edge list)
 
-  val node = Node
-  fun edge {from, to} = Edge {from = from, to = to, attrs = NONE}
-  fun edgeWithAttrs (Edge {from, to, attrs = NONE}) attrs =
-      Edge {from = from, to = to, attrs = SOME attrs}
-    | edgeWithAttrs (Edge {from, to, attrs = SOME attrs0}) attrs =
-      Edge {from = from, to = to, attrs = SOME $ foldr op :: attrs0 attrs}
+  fun node n = (Node n, NONE)
+  fun edge e = (Edge e, NONE)
+  fun withAttrs (v, NONE) attrs = (v, SOME attrs)
+    | withAttrs (v, SOME attrs0) attrs = (v, SOME $ foldr op :: attrs0 attrs)
+  val (edgeWithAttrs, nodeWithAttrs) = (withAttrs, withAttrs)
+  fun attrsString (SOME (attrs as _::_)) =
+      let val attrs = map (fn (key, value) => key ^ "=\"" ^ value ^ "\"") attrs
+      in  String.concatWith "," attrs
+      end
+    | attrsString _ = ""
 
   (* And what should we do about escaping the SML strings---is
      String.toString sufficient for dot? Maybe we need a datatype to
@@ -37,13 +50,14 @@ structure Dot :> sig
      Slightly related: we should also check that e.g. all nodes have
      distinct names.
    *)
-  fun nodeString (Node {name, label}) = name ^ " [label=\"" ^ label ^ "\"]"
-  fun edgeString (Edge {from, to, attrs = SOME (attrs as _::_)}) =
-      let val prefix = edgeString (Edge {from = from, to = to, attrs = NONE})
-          val attrs = map (fn (key, value) => key ^ "=\"" ^ value ^ "\"") attrs
-      in prefix ^ "[" ^ String.concatWith "," attrs ^ "]"
+  fun nodeString (Node {name, label}, attrs) =
+      let val prefix = name ^ " [label=\"" ^ label ^ "\"]"
+      in  prefix ^ "[" ^ attrsString attrs ^ "]"
       end
-    | edgeString (Edge {from, to, attrs = _}) = from ^ " -> " ^ to
+  fun edgeString (Edge {from, to}, attrs) =
+      let val prefix = from ^ " -> " ^ to
+      in prefix ^ "[" ^ attrsString attrs ^ "]"
+      end
   fun toString (nodes, edges) =
       let val nodeCount = length nodes
           val (width, height) = if nodeCount < 7
@@ -63,7 +77,7 @@ structure Dot :> sig
           val size = fmt width ^ "," ^ fmt height
       in String.concatWith "\n" $
                            [ "digraph testgraph { fontsize=\"9\""
-                           , "size=\"" ^ size ^ "\"; ratio=compress"
+                           , "size=\"" ^ size ^ "\"; ratio=auto"
                            , "node [fontsize=\"9\"]"
                            , "edge [fontsize=\"9\"]"
                            ]
