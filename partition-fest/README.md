@@ -34,6 +34,12 @@ project also:
 
   - builds a decision tree based on the mutual entropy of tests.
 
+  - generates a report of how students did on a particular set of
+    outcomes. The report contains at most N witnesses of the student's
+    test results. The witnesses are drawn in decreasing order of the
+    test's mutual information, where mutual information is the entropy
+    of a particular test node in the decision tree.
+
 To use a particular mode, supply the mode name after the command,
 e.g. `sml @SMLload=image partition`.
 
@@ -48,6 +54,10 @@ e.g. `sml @SMLload=image partition`.
 ### Decision tree
 
 *Mode name* `decision-tree`
+
+### Student reporting
+
+*Mode name* `report`
 
 ## Debugging
 

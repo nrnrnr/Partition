@@ -114,12 +114,25 @@ structure Partition = struct
       ; OS.Process.failure
       )
 
+  fun doReport (prog, [outcomes]) =
+      let val db = Util.withInputFromFile outcomes FileReader.readToMap
+          val tree = TestResultDecisionTree.make db
+      in  success $ DecisionTreeReport.format $ DecisionTreeReport.make tree db
+      end
+    | doReport (prog, argv) =
+      ( eprint (String.concatWith " " ["Usage:", prog, "report outcomes\n"])
+      ; eprint "Got these args : "; app (fn s => app eprint [" ", s]) argv
+      ; eprint "\n"
+      ; OS.Process.failure
+      )
+
   fun run (prog, argv) =
       let val (mode, argv) =
               case argv
                of ("partition" :: argv) => (doPartition, argv)
                 | ("entropy" :: argv) => (doEntropy, argv)
                 | ("decision-tree" :: argv) => (doTree, argv)
+                | ("report" :: argv) => (doReport, argv)
                 | _ => (doPartition, argv)
       in  mode (prog, argv)
       end

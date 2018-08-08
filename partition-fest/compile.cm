@@ -57,6 +57,7 @@ group is $/basis.cm
 
   entropy.sml
   dot.sml
+  report.sml
   decisiontree.sml
   testutil.sml
 

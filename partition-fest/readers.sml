@@ -27,7 +27,11 @@ end
   infix 5 ---
 
 
-  fun getWitness (_, cs) = SOME (implode (Util.dropWhile Char.isSpace cs), [])
+  fun getWitness (_, cs) =
+      let val cs = Util.dropWhile Char.isSpace cs
+          val cs = rev (Util.dropWhile Char.isSpace (rev cs))
+      in  SOME (implode cs, [])
+      end
 
   fun isDelim c = c = #","   (* limited notion of delim *)
   fun idChar c = Char.isAlphaNum c orelse c = #"-" orelse c = #"."
