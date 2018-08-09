@@ -11,6 +11,7 @@ structure TestResultDecisionTree :> sig
               val make : DB.db -> decisionTree
               val labeledDecisions : decisionTree -> string list
               val toDot : decisionTree -> Dot.graph
+              val toDotWithGrades : decisionTree -> Grade.grade Map.map -> Dot.graph
           end
 = struct
   exception Invariant of string
@@ -101,7 +102,8 @@ structure TestResultDecisionTree :> sig
       in  labelOf entropy decision :: List.concat subdecisions
       end
 
-  fun toDot tree =
+
+  fun toDot tree gradesMap =
       let val nextName =
               (* The Dot library /could/ optionally name the nodes for
                  us, with each edge built from the nodes at each end
@@ -117,7 +119,16 @@ structure TestResultDecisionTree :> sig
               let val name = nextName ()
                   val label = Util.renderSolutionIdsNarrow sIds
                   val n = Dot.node { name = name, label = label }
-              in  ( [ Dot.nodeWithAttrs n [("shape", "oval")] ]
+                  val gradeColorAttrs =
+                      case gradesMap
+                        of NONE => []
+                         | SOME gradesMap =>
+                           let val {style, fillColor} = Grade.colorIds sIds gradesMap
+                           in  [ ("style", style)
+                               , ("fillcolor", fillColor)
+                               ]
+                           end
+              in  ( [ Dot.nodeWithAttrs n $ [("shape", "oval")] @ gradeColorAttrs ]
                   , [ mkInEdge name ]
                   )
               end
@@ -146,4 +157,9 @@ structure TestResultDecisionTree :> sig
       in  (Dot.nodeWithAttrs start [("style", "invis")] :: ns, es)
       end
   and edgeWidth entropy = entropy * 2.5
+
+  val (toDot, toDotWithGrades) =
+      ( (fn tree => toDot tree NONE)
+      , (fn tree => fn gradesMap => toDot tree (SOME gradesMap))
+      )
 end

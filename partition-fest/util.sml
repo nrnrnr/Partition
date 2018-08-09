@@ -16,6 +16,7 @@ signature UTILITIES = sig
   val allSame : ''a list -> bool
   val withInputFromFile : string -> (TextIO.instream -> 'b) -> 'b
   val renderSolutionIdsNarrow : string list -> string
+  val unique : ''a list -> ''a list
 end
 
 structure Util : UTILITIES = struct
@@ -84,5 +85,11 @@ fun renderSolutionIdsNarrow sIds =
               | _ => id ^ ", " ^ s
     in  Vector.foldri renderId "" sIds
     end
+
+fun unique [] = []
+  | unique (x::xs) =
+    if member x xs
+    then unique xs
+    else x :: (unique xs)
 
 end

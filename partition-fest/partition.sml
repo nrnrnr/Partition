@@ -102,17 +102,34 @@ structure Partition = struct
       ))
       handle BadOption s => (app eprint [s, "\n"] ; OS.Process.failure)
 
-  fun doTree (prog, [outcomes]) =
-      let val makeTree = TestResultDecisionTree.make o FileReader.readToMap
-          val tree = Util.withInputFromFile outcomes makeTree
-      in  success $ Dot.toString $ TestResultDecisionTree.toDot tree
+  fun doTree (prog, argv') =
+      let val (options, argv) = options argv'
+          fun gradesFile [] = (NONE, [])
+            | gradesFile (Gradesfile s :: rest) = (SOME s, rest)
+            | gradesFile (other :: rest) =
+              let val (g, r') = gradesFile rest
+              in  (g, other :: r')
+              end
+          val (grades, options) = gradesFile options
+          val makeTree = TestResultDecisionTree.make o FileReader.readToMap
+          val success = (fn t => success $ Dot.toString t)
+      in case (grades, argv)
+           of (SOME grades, [outcomes]) =>
+              let val tree = Util.withInputFromFile outcomes makeTree
+                  val grades = Util.withInputFromFile grades GradeReader.readToMap
+              in  success $ TestResultDecisionTree.toDotWithGrades tree grades
+              end
+            | (NONE, [outcomes]) =>
+              let val tree = Util.withInputFromFile outcomes makeTree
+              in  success $ TestResultDecisionTree.toDot tree
+              end
+            | _ =>
+              ( eprint (String.concatWith " " ["Usage:", prog, "decision-tree [-g filename] outcomes\n"])
+              ; eprint "Got these args : "; app (fn s => app eprint [" ", s]) argv'
+              ; eprint "\n"
+              ; OS.Process.failure
+              )
       end
-    | doTree (prog, argv) =
-      ( eprint (String.concatWith " " ["Usage:", prog, "decision-tree outcomes\n"])
-      ; eprint "Got these args : "; app (fn s => app eprint [" ", s]) argv
-      ; eprint "\n"
-      ; OS.Process.failure
-      )
 
   fun doReport (prog, [outcomes]) =
       let val db = Util.withInputFromFile outcomes FileReader.readToMap

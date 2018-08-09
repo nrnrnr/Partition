@@ -365,42 +365,14 @@ struct
   fun eprint s = TextIO.output (TextIO.stdErr, s ^ "\n")
   structure Gr = Grade
   fun gradeNodeColors m gradesMap =
-      let fun gradeFor id0 g0 ids =
-          let fun loop [] = g0
-                | loop (id::ids) =
-                  let val g = Map.lookup (id, gradesMap)
-                  in  ( if g0 <> g then
-                            eprint (String.concatWith
-                                        " "
-                                        [ "Solution", id0, "had grade"
-                                        , Gr.toString g0
-                                        , "yet", id, "had grade"
-                                        , Gr.toString g
-                                        ])
-                        else ()
-                      ; loop ids
-                      )
-                  end
-          in  loop ids
-          end
-
-        fun colorFor Gr.E = "//gray"
-          | colorFor Gr.VG = "/orrd9/7"
-          | colorFor Gr.G = "/orrd9/5"
-          | colorFor Gr.F = "/orrd9/3"
-          | colorFor Gr.P = "/orrd9/1"
-          | colorFor Gr.NC = "//white"
-          | colorFor (Gr.UNKNOWN _) = "//yellow2"
-
-        fun colorNode (_, ([], _), _) = raise Impossible (* each label is mapped to n > 0 solution ids *)
-          | colorNode (label, (id0::ids, _), colors) =
-            let val g0 = Map.lookup (id0, gradesMap)
-                val color = colorFor (gradeFor id0 g0 ids)
-                val attr = "[style=filled,fillcolor=\"" ^ color ^ "\"]"
-            in  Map.bind (label, [attr], colors)
-            end
-    in  Map.mapFold colorNode Map.empty m
-    end
+      let fun colorNode (_, ([], _), _) = raise Impossible (* each label is mapped to n > 0 solution ids *)
+            | colorNode (label, (ids, _), colorsSoFar) =
+              let val {style, fillColor} = Gr.colorIds ids gradesMap
+                  val attr = "[style=" ^ style ^ ",fillcolor=\"" ^ fillColor ^ "\"]"
+              in  Map.bind (label, [attr], colorsSoFar)
+              end
+      in  Map.mapFold colorNode Map.empty m
+      end
 
   structure NodeMap = BinaryMapFn(type ord_key = G.node
                                   val compare = String.compare)

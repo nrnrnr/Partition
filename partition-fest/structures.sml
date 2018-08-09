@@ -34,6 +34,27 @@ structure Grade = struct
       | toString P = "P"
       | toString NC = "NC"
       | toString (UNKNOWN s) = s
+
+    fun color E = "//gray"
+      | color VG = "/orrd9/7"
+      | color G = "/orrd9/5"
+      | color F = "/orrd9/3"
+      | color P = "/orrd9/1"
+      | color NC = "//white"
+      | color (UNKNOWN _) = "//yellow2"
+
+    fun colorIds ids gradesMap =
+        let fun colors gs = String.concatWith ":" (map color gs)
+            val gs = map (fn id => Map.lookup (id, gradesMap)) ids
+            val (style, fillColor) =
+                case Util.unique gs
+                 of [g] => ("filled", color g)
+                  | gs => ("wedged", colors gs)
+
+        in  { style = style
+            , fillColor = fillColor
+            }
+        end
   end
 
 (* XXX: Not sure where to put NodeInfo. But when it wasn't in a structure
