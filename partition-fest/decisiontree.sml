@@ -55,9 +55,9 @@ structure TestResultDecisionTree :> sig
               end
 
           fun tmarkInfo (tmark as (tid, tnum)) =
-              let val tests = TestUtil.getOneTest tid tnum db
-                  val solutionsByOutcome = foldr addTest StringMap.empty tests
-              in  (tmark, solutionsByOutcome, Entropy.entropy $ Entropy.histogram tests)
+              let val pairs = TestUtil.getOneTest tid tnum db
+                  val solutionsByOutcome = foldr addTest StringMap.empty pairs
+              in  (tmark, solutionsByOutcome, Entropy.entropy $ Entropy.histogram pairs)
               end
           fun infoLt ((_, _, e0), (_, _, e1)) = e0 < e1
 
