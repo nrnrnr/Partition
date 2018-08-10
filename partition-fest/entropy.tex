@@ -4,7 +4,7 @@
 
 \newenvironment{calcproof}{\[\begin{array}{c@{}l@{}}}
                      {\end{array}\]\ifhmode\unskip\par\fi\csname @endparenv\endcsname}
-\newcommand\pterm[1]{\multicolumn{2}{l}{#1}\\}
+\newcommand\pterm[1]{\multicolumn{2}{l}{\displaystyle#1}\\}
 \newcommand\pfeqonly[1]{%
    \mskip 15mu{}={} & \{\mbox{#1}\} \\
 }
@@ -14,29 +14,73 @@
                              \let\pterm=\ptermmbox\begin{array}{c@{}l@{}}}
                      {\end{array}\]\ifhmode\unskip\par\fi\csname @endparenv\endcsname}
 
+\newcommand{\st}{\mid}
+\newcommand{\soa}{\mbox{$s$ has $o$ at $A$}}
+
+\begin{tabular}{ll}
+  $A$ & Test \\
+  $X$ & Students (for student tree) \\
+  $X$ & Grades (for grade tree) \\
+\end{tabular}
+
+\section{Student decision tree}
+
+\begin{calcproof}
+  \pterm{\mathit{IG}(A,S)}
+  \pfeqonly{defn from Wikipedia}
+  \pterm{H(S) - \sum_{t \in T} p(t) H(t)}
+  \pfeqonly{every subset $t$ corresponds to an outcome $o$}
+  \pterm{H(S) - \sum_{o \in O_A} p(o) H(\{s \in S \st \soa \})}
+  \pfeqonly{defn of $H$, and each student is a class}
+  \pterm{H(S) - \sum_{o \in O_A} p(o) \sum_{s \in S, \scriptstyle\soa} -p(s) \lg p(s)}
+  \pfeqonly{$-(-e) = e$}
+  \pterm{H(S) + \sum_{o \in O_A} p(o) \sum_{s \in S, \scriptstyle\soa} p(s) \lg p(s)}
+  \pfeqonly{let $n_o = |\{s \in S \st \soa \}|$, each student is equally likely}
+  \pterm{H(S) + \sum_{o \in O_A} p(o) \sum_{1 \le i \le n_o} \frac 1 {n_o} \lg \frac 1 {n_o}}
+  \pfeqonly{sum of $n_o$ constant terms}
+  \pterm{H(S) + \sum_{o \in O_A} p(o) \lg \frac 1 {n_o}}
+  \pfeqonly{probability of outcome $o$}
+  \pterm{H(S) + \sum_{o \in O_A} \frac {n_o} {|S|} \lg \frac 1 {n_o}}
+  \pfeqonly{$\lg$ reciprocal is the negative $\lg$}
+  \pterm{H(S) - \sum_{o \in O_A} \frac {n_o} {|S|} \lg n_o}
+  \pfeqonly{defn of $H$, and each student is a class}
+  \pterm{\left(- \sum_{s \in S} p(s) \lg p(s) \right) - \sum_{o \in O_A} \frac {n_o} {|S|} \lg n_o}
+  \pfeqonly{each student is equally likely}
+  \pterm{\left(- \sum_{s \in S} \frac 1 {|S|} \lg \frac 1 {|S|} \right) - \sum_{o \in O_A} \frac {n_o} {|S|} \lg n_o}
+  \pfeqonly{sum of $|S|$ constant terms}
+  \pterm{\left(- \lg \frac 1 {|S|} \right) - \sum_{o \in O_A} \frac {n_o} {|S|} \lg n_o}
+  \pfeqonly{$\lg$ reciprocal is the negative $\lg$}
+  \pterm{\lg |S| - \sum_{o \in O_A} \frac {n_o} {|S|} \lg n_o}
+  \pfeqonly{move $\frac 1 {|S|}$ out}
+  \pterm{\lg |S| - \frac 1 {|S|} \sum_{o \in O_A} n_o \lg n_o}
+
+\end{calcproof}
 
 
+\newcommand{\oa}{o \mathrel{\mathrm{at}} A}
+\newcommand{\sg}{s \mathrel{\mathrm{graded}} g}
+\section{Grade decision tree}
+\begin{calcproof}
+  \pterm{\mathit{IG}(A,S)}
+  \pfeqonly{defn from Wikipedia}
+  \pterm{H(S) - \sum_{t \in T} p(t) H(t)}
+  \pfeqonly{every subset $t$ corresponds to an outcome $o$}
+  \pterm{H(S) - \sum_{o \in O_A} p(o) H(\{s \in S \st \soa \})}
+  \pfeqonly{defn of $H$, and each grade is a class}
+  \pterm{H(S) - \sum_{o \in O_A} p(o) \sum_{g \in G} -p(g|\oa) \lg p(g|\oa)}
+  \pfeqonly{$-(-e) = e$}
+  \pterm{H(S) + \sum_{o \in O_A} p(o) \sum_{g \in G} p(g|\oa) \lg p(g|\oa)}
+  \pfeqonly{let $n_o = |\{s \in S \st \soa \}|$, each student is equally likely}
+  \pfeqonly{let $n_{o,g} = |\{s \in S \st \soa, \sg \}|$}
+  \pterm{H(S) + \sum_{o \in O_A} p(o) \sum_{g \in G} \frac {n_{o,g}} {n_o} \lg \frac {n_{o,g}} {n_o}}
+  \pfeqonly{probability of $o$, each student is equally llikely}
+  \pterm{H(S) + \sum_{o \in O_A} \frac {n_o} {|S|} \sum_{g \in G} \frac {n_{o,g}} {n_o} \lg \frac {n_{o,g}} {n_o}}
+  \pfeqonly{defn of H, and each grade is a class}
+  \pterm{\left( \sum_{g \in G} -p(g) \lg p(g) \right) + \sum_{o \in O_A} \frac {n_o} {|S|} \sum_{g \in G} \frac {n_{o,g}} {n_o} \lg \frac {n_{o,g}} {n_o}}
+  \pfeqonly{let $n_g = \sum_{o \in O_A} n_{o,g}$; probability of a grade, each student is equally likely}
+  \pterm{\left( \sum_{g \in G} - \frac {n_g} {|S|} \lg \frac {n_g} {|S|} \right) + \sum_{o \in O_A} \frac {n_o} {|S|} \sum_{g \in G} \frac {n_{o,g}} {n_o} \lg \frac {n_{o,g}} {n_o}}
+\end{calcproof}
 
-
-\begin{codeproof}% ===> this file was generated automatically by noweave --- better not edit it
-\pterm{{\ttfamily{}(append\ (cons\ x\ '())\ ys)}}
-\pfeqonly{substitute actual parameters in definition of {\ttfamily{}append}}
-\pterm{{\ttfamily{}(if\ (null?\ (cons\ x\ '()))}}
-\pterm{{\ttfamily{}\ \ \ \ ys}}
-\pterm{{\ttfamily{}\ \ \ \ (cons\ (car\ (cons\ x\ '()))\ (append\ (cdr\ (cons\ 'x\ '()))\ ys)))}}
-\pfeqonly{{\ttfamily{}null?}-{\ttfamily{}cons} law}
-\pterm{{\ttfamily{}(if\ {\#}f}}
-\pterm{{\ttfamily{}\ \ \ \ ys}}
-\pterm{{\ttfamily{}\ \ \ \ (cons\ (car\ (cons\ x\ '()))\ (append\ (cdr\ (cons\ 'x\ '()))\ ys)))}}
-\pfeqonly{{\ttfamily{}if}-{\ttfamily{}{\#}f} law}
-\pterm{{\ttfamily{}(cons\ (car\ (cons\ x\ '()))\ (append\ (cdr\ (cons\ 'x\ '()))\ ys))}}
-\pfeqonly{{\ttfamily{}car}-{\ttfamily{}cons} law}
-\pterm{{\ttfamily{}(cons\ x\ (append\ (cdr\ (cons\ 'x\ '()))\ ys))}}
-\pfeqonly{{\ttfamily{}cdr}-{\ttfamily{}cons} law}
-\pterm{{\ttfamily{}(cons\ x\ (append\ '()\ ys))}}
-\pfeqonly{{\ttfamily{}append}-empty law}
-\pterm{{\ttfamily{}(cons\ x\ ys)}}
-\end{codeproof}
 \relax{}
 
 \end{document}
