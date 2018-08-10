@@ -1,0 +1,42 @@
+\documentclass{article}
+\usepackage{array}
+\begin{document}
+
+\newenvironment{calcproof}{\[\begin{array}{c@{}l@{}}}
+                     {\end{array}\]\ifhmode\unskip\par\fi\csname @endparenv\endcsname}
+\newcommand\pterm[1]{\multicolumn{2}{l}{#1}\\}
+\newcommand\pfeqonly[1]{%
+   \mskip 15mu{}={} & \{\mbox{#1}\} \\
+}
+\newcommand\pfeq[2][]{\pfeqonly{#1}\pterm{#2}}
+\newcommand\ptermmbox[1]{\multicolumn{2}{l}{\mbox{#1}}\\}
+\newenvironment{codeproof}{\[\advance\extrarowheight by 2pt
+                             \let\pterm=\ptermmbox\begin{array}{c@{}l@{}}}
+                     {\end{array}\]\ifhmode\unskip\par\fi\csname @endparenv\endcsname}
+
+
+
+
+
+\begin{codeproof}% ===> this file was generated automatically by noweave --- better not edit it
+\pterm{{\ttfamily{}(append\ (cons\ x\ '())\ ys)}}
+\pfeqonly{substitute actual parameters in definition of {\ttfamily{}append}}
+\pterm{{\ttfamily{}(if\ (null?\ (cons\ x\ '()))}}
+\pterm{{\ttfamily{}\ \ \ \ ys}}
+\pterm{{\ttfamily{}\ \ \ \ (cons\ (car\ (cons\ x\ '()))\ (append\ (cdr\ (cons\ 'x\ '()))\ ys)))}}
+\pfeqonly{{\ttfamily{}null?}-{\ttfamily{}cons} law}
+\pterm{{\ttfamily{}(if\ {\#}f}}
+\pterm{{\ttfamily{}\ \ \ \ ys}}
+\pterm{{\ttfamily{}\ \ \ \ (cons\ (car\ (cons\ x\ '()))\ (append\ (cdr\ (cons\ 'x\ '()))\ ys)))}}
+\pfeqonly{{\ttfamily{}if}-{\ttfamily{}{\#}f} law}
+\pterm{{\ttfamily{}(cons\ (car\ (cons\ x\ '()))\ (append\ (cdr\ (cons\ 'x\ '()))\ ys))}}
+\pfeqonly{{\ttfamily{}car}-{\ttfamily{}cons} law}
+\pterm{{\ttfamily{}(cons\ x\ (append\ (cdr\ (cons\ 'x\ '()))\ ys))}}
+\pfeqonly{{\ttfamily{}cdr}-{\ttfamily{}cons} law}
+\pterm{{\ttfamily{}(cons\ x\ (append\ '()\ ys))}}
+\pfeqonly{{\ttfamily{}append}-empty law}
+\pterm{{\ttfamily{}(cons\ x\ ys)}}
+\end{codeproof}
+\relax{}
+
+\end{document}
