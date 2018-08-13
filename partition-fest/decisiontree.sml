@@ -1,18 +1,35 @@
-structure TestResultDecisionTree :> sig
-              type sid = string
-              type tid = string
-              type tnum = int
+structure StringMap = BinaryMapFn(BasicStringKey)
 
-              type element = sid
-              type decision = (tid * tnum)
-              datatype decisionTree = Leaf of element list
-                                    | Branch of (real * decision * (string option * decisionTree) list)
+signature TEST_DECISION_TREE
+= sig
+    type sid = string
+    type tid = string
+    type tnum = int
 
-              val make : DB.db -> decisionTree
-              val labeledDecisions : decisionTree -> string list
-              val toDot : decisionTree -> Dot.graph
-              val toDotWithGrades : decisionTree -> Grade.grade Map.map -> Dot.graph
-          end
+    type element = sid
+    type decision = (tid * tnum)
+    datatype decisionTree = Leaf of element list
+                          | Branch of (real * decision * (string option * decisionTree) list)
+
+    val make : { outcomes : DB.db
+               , informationGain : DB.db -> (tid * tnum) -> (sid list StringMap.map * real)
+               } -> decisionTree
+    val labeledDecisions : decisionTree -> string list
+    val toDot : decisionTree -> Dot.graph
+    val toDotWithGrades : decisionTree -> Grade.grade Map.map -> Dot.graph
+end
+
+signature INFORMATION_GAIN
+= sig
+    type sid = string
+    type tid = string
+    type tnum = int
+    type gain = (sid list StringMap.map * real)
+
+    val forStudentTree : DB.db -> (tid * tnum) -> gain
+end
+
+structure TestResultDecisionTree :> TEST_DECISION_TREE
 = struct
   exception Invariant of string
   infixr 0 $
@@ -20,7 +37,6 @@ structure TestResultDecisionTree :> sig
   type sid = string
   type tid = string
   type tnum = int
-  structure StringMap = BinaryMapFn(BasicStringKey)
 
   type element = sid
   type decision = (tid * tnum)
@@ -32,37 +48,25 @@ structure TestResultDecisionTree :> sig
   datatype decisionTree = Leaf of element list
                         | Branch of (real * decision * (string option * decisionTree) list)
 
-  fun make db =
-      let val decide = decide db
-          val sids = (TestUtil.sidsOfDb db)
+  fun make {outcomes=db, informationGain} =
+      let val decide = (fn db => fn tmarks => decide db informationGain tmarks)
           fun treeOfSplit sids NONE = Leaf sids
             | treeOfSplit sids (SOME {decided = (d, sidss), remaining = remaining, entropy = entropy}) =
-              Branch (entropy, d, map (fn (l, sids) => (l, treeOfSplit sids (decide sids remaining))) sidss)
-      in  treeOfSplit sids $ decide sids (TestUtil.tmarksOfDb db)
+              let fun subdecide (l, sids) = (l, treeOfSplit sids (decide (restrict db sids) remaining))
+              in  Branch (entropy, d, map subdecide sidss)
+              end
+      in  treeOfSplit (TestUtil.sidsOfDb db) $ decide db (TestUtil.tmarksOfDb db)
       end
 
-  and decide db solutions tmarks =
-      let val db = DB.fold (fn entry as (tid, tnum, sid, outcome, db') =>
-                               if List.exists (fn sid0 => sid = sid0) solutions
-                               then DB.bind entry
-                               else db')
-                           DB.empty
-                           db
-
-          fun addTest ((outcome, solution), sboSoFar) =
-              let val others = getOpt (StringMap.find (sboSoFar, outcome), [])
-              in StringMap.insert (sboSoFar, outcome, solution :: others)
+  and decide db0 informationGain tmarks =
+      let fun infoLt ((_, _, e0), (_, _, e1)) = e0 < e1
+          fun tmarkInfoGain tmark =
+              let val (solutionsByOutcome, entropy) = informationGain db0 tmark
+              in  (tmark, solutionsByOutcome, entropy)
               end
 
-          fun tmarkInfo (tmark as (tid, tnum)) =
-              let val pairs = TestUtil.getOneTest tid tnum db
-                  val solutionsByOutcome = foldr addTest StringMap.empty pairs
-              in  (tmark, solutionsByOutcome, Entropy.entropy $ Entropy.histogram pairs)
-              end
-          fun infoLt ((_, _, e0), (_, _, e1)) = e0 < e1
-
-      in  case ListMergeSort.sort infoLt $ map tmarkInfo tmarks
-            of [] => NONE (* should only happen when tmarks is empty *)
+      in  case ListMergeSort.sort infoLt $ map tmarkInfoGain tmarks
+            of [] => NONE
 
              | ((tmark as (tid, tnum), solutionsByOutcome, entropy) :: _) =>
                (* The way infos were sorted the head of the list
@@ -88,7 +92,13 @@ structure TestResultDecisionTree :> sig
                end
       end
 
-  val decide : DB.db -> element list -> decision list -> split option = decide
+  and restrict db solutions =
+      DB.fold (fn entry as (tid, tnum, sid, outcome, db') =>
+                  if List.exists (fn sid0 => sid = sid0) solutions
+                  then DB.bind entry
+                  else db')
+              DB.empty
+              db
 
   fun fmtReal r = Real.fmt (StringCvt.FIX $ SOME 3) r
   fun labelOf entropy (tid, tnum) = String.concatWith " " [ tid
@@ -162,4 +172,26 @@ structure TestResultDecisionTree :> sig
       ( (fn tree => toDot tree NONE)
       , (fn tree => fn gradesMap => toDot tree (SOME gradesMap))
       )
+end
+
+structure InformationGain :> INFORMATION_GAIN
+= struct
+  type sid = string
+  type tid = string
+  type tnum = int
+  type gain = (sid list StringMap.map * real)
+
+  fun forStudentTree db tmark =
+      let fun addTest ((outcome, solution), sboSoFar) =
+              let val others = getOpt (StringMap.find (sboSoFar, outcome), [])
+              in StringMap.insert (sboSoFar, outcome, solution :: others)
+              end
+
+          fun tmarkInfo (tid, tnum) =
+              let val pairs = TestUtil.getOneTest tid tnum db
+                  val solutionsByOutcome = foldr addTest StringMap.empty pairs
+              in  (solutionsByOutcome, Entropy.entropy (Entropy.histogram pairs))
+              end
+      in  tmarkInfo tmark
+      end
 end

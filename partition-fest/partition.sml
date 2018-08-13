@@ -111,7 +111,11 @@ structure Partition = struct
               in  (g, other :: r')
               end
           val (grades, options) = gradesFile options
-          val makeTree = TestResultDecisionTree.make o FileReader.readToMap
+          fun makeStudentTree outcomes =
+              TestResultDecisionTree.make { outcomes = outcomes
+                                          , informationGain = InformationGain.forStudentTree
+                                          }
+          val makeTree = makeStudentTree o FileReader.readToMap
           val success = (fn t => success $ Dot.toString t)
       in case (grades, argv)
            of (SOME grades, [outcomes]) =>
@@ -133,7 +137,9 @@ structure Partition = struct
 
   fun doReport (prog, [outcomes]) =
       let val db = Util.withInputFromFile outcomes FileReader.readToMap
-          val tree = TestResultDecisionTree.make db
+          val tree = TestResultDecisionTree.make { outcomes = db
+                                                 , informationGain = InformationGain.forStudentTree
+                                                 }
       in  success $ DecisionTreeReport.format $ DecisionTreeReport.make tree db
       end
     | doReport (prog, argv) =
