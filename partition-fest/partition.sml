@@ -11,6 +11,8 @@ structure Partition = struct
       | Outfile of string
       | Gradesfile of string
       | PrintDistribution of TextIO.outstream
+      | StudentTree
+      | GradeTree
 
   fun options argv =
     let fun eat (options', "-c" :: argv) = eat (RankClaessen :: options', argv)
@@ -21,6 +23,8 @@ structure Partition = struct
               eat (Gradesfile filename :: options', argv)
           | eat (options', "-w" :: argv) = eat (WitnessRed :: options', argv)
           | eat (options', "-d" :: argv) = eat (PrintDistribution TextIO.stdErr :: options', argv)
+          | eat (options', "--student-tree" :: argv) = eat (StudentTree :: options', argv)
+          | eat (options', "--grade-tree" :: argv) = eat (GradeTree :: options', argv)
           | eat (options', argv) = (options', argv)
         val (options', argv) = eat ([], argv)
     in  (rev options', argv)
@@ -110,25 +114,50 @@ structure Partition = struct
               let val (g, r') = gradesFile rest
               in  (g, other :: r')
               end
+          fun treeStyle [] = (SOME StudentTree, [])
+            | treeStyle (StudentTree :: rest) = (SOME StudentTree, rest)
+            | treeStyle (GradeTree :: rest) = (SOME GradeTree, rest)
+            | treeStyle (other :: rest) =
+              let val (s, r') = treeStyle rest
+              in  (s, other :: r')
+              end
           val (grades, options) = gradesFile options
-          fun makeStudentTree outcomes =
-              TestResultDecisionTree.make { outcomes = outcomes
-                                          , informationGain = InformationGain.forStudentTree
-                                          }
-          val makeTree = makeStudentTree o FileReader.readToMap
+          val (treeStyle, options) = treeStyle options
+          fun makeStudentTree ins =
+              let val outcomes = FileReader.readToMap ins
+              in TestResultDecisionTree.make { outcomes = outcomes
+                                             , informationGain = InformationGain.forStudentTree
+                                             }
+              end
+          fun makeGradeTree grades ins =
+              let val outcomes = FileReader.readToMap ins
+              in TestResultDecisionTree.make { outcomes = outcomes
+                                             , informationGain = InformationGain.forGradeTree grades
+                                             }
+              end
           val success = (fn t => success $ Dot.toString t)
-      in case (grades, argv)
-           of (SOME grades, [outcomes]) =>
-              let val tree = Util.withInputFromFile outcomes makeTree
-                  val grades = Util.withInputFromFile grades GradeReader.readToMap
+      in case (grades, treeStyle, argv)
+          of  (SOME grades, SOME GradeTree, [outcomes]) =>
+              let val grades = Util.withInputFromFile grades GradeReader.readToMap
+                  val tree = Util.withInputFromFile outcomes (makeGradeTree grades)
               in  success $ TestResultDecisionTree.toDotWithGrades tree grades
               end
-            | (NONE, [outcomes]) =>
-              let val tree = Util.withInputFromFile outcomes makeTree
+            | (SOME grades, SOME StudentTree, [outcomes]) =>
+              let val grades = Util.withInputFromFile grades GradeReader.readToMap
+                  val tree = Util.withInputFromFile outcomes makeStudentTree
+              in  success $ TestResultDecisionTree.toDotWithGrades tree grades
+              end
+            | (NONE, SOME StudentTree, [outcomes]) =>
+              let val tree = Util.withInputFromFile outcomes makeStudentTree
+              in  success $ TestResultDecisionTree.toDot tree
+              end
+            | (NONE, NONE, [outcomes]) =>
+              let val tree = Util.withInputFromFile outcomes makeStudentTree
               in  success $ TestResultDecisionTree.toDot tree
               end
             | _ =>
               ( eprint (String.concatWith " " ["Usage:", prog, "decision-tree [-g filename] outcomes\n"])
+              ; eprint "When given '-g', '--grade-tree' is allowed; otherwise only the default '--student-tree' is allowed"
               ; eprint "Got these args : "; app (fn s => app eprint [" ", s]) argv'
               ; eprint "\n"
               ; OS.Process.failure

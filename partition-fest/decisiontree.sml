@@ -27,6 +27,7 @@ signature INFORMATION_GAIN
     type gain = (sid list StringMap.map * real)
 
     val forStudentTree : DB.db -> (tid * tnum) -> gain
+    val forGradeTree : Grade.grade Map.map -> DB.db -> (tid * tnum) -> gain
 end
 
 structure TestResultDecisionTree :> TEST_DECISION_TREE
@@ -75,21 +76,21 @@ structure TestResultDecisionTree :> TEST_DECISION_TREE
                   element list. If we only want the test with highest
                   entropy then we can ignore the rest of the list.
                 *)
-               let fun subdecisionsOf (outcome, solutions) = (SOME outcome, solutions)
-                   val subdecisions = map subdecisionsOf $ StringMap.listItemsi solutionsByOutcome
+               if Real.== (entropy, 0.0)
+               then NONE
+               else let fun subdecisionsOf (outcome, solutions) = (SOME outcome, solutions)
+                        val subdecisions = map subdecisionsOf $ StringMap.listItemsi solutionsByOutcome
+                    in  case map (fn (out, _) => out) $ StringMap.listItemsi solutionsByOutcome
 
-               in  case map (fn (out, _) => out) $ StringMap.listItemsi solutionsByOutcome
+                         of [_] => NONE
 
-                    of [_] => NONE
-
-                     | outs as (_ :: _) =>
-                       SOME { decided = (tmark, subdecisions)
-                            , remaining = List.filter (fn tm => tm <> tmark) tmarks
-                            , entropy = entropy
-                            }
-                            
-                    | _ => raise Invariant ("Got no outcomes for test '" ^ tid ^ " " ^ Int.toString tnum ^ "'")
-               end
+                          | outs as (_ :: _) =>
+                            SOME { decided = (tmark, subdecisions)
+                                 , remaining = List.filter (fn tm => tm <> tmark) tmarks
+                                 , entropy = entropy
+                                 }
+                          | _ => raise Invariant ("Got no outcomes for test '" ^ tid ^ " " ^ Int.toString tnum ^ "'")
+                    end
       end
 
   and restrict db solutions =
@@ -181,17 +182,48 @@ structure InformationGain :> INFORMATION_GAIN
   type tnum = int
   type gain = (sid list StringMap.map * real)
 
-  fun forStudentTree db tmark =
-      let fun addTest ((outcome, solution), sboSoFar) =
+  fun solutionsByOutcome pairs =
+      let fun add ((outcome, solution), sboSoFar) =
               let val others = getOpt (StringMap.find (sboSoFar, outcome), [])
               in StringMap.insert (sboSoFar, outcome, solution :: others)
               end
+      in  foldr add StringMap.empty pairs
+      end
 
-          fun tmarkInfo (tid, tnum) =
-              let val pairs = TestUtil.getOneTest tid tnum db
-                  val solutionsByOutcome = foldr addTest StringMap.empty pairs
-              in  (solutionsByOutcome, Entropy.entropy (Entropy.histogram pairs))
+  fun forStudentTree db (tid, tnum) =
+      let val pairs = TestUtil.getOneTest tid tnum db
+          val solutionsByOutcome = solutionsByOutcome pairs
+          val entropy = Entropy.entropy (Entropy.histogram pairs)
+      in (solutionsByOutcome, entropy)
+      end
+
+  fun forGradeTree grades db (tid, tnum) =
+      (* Based on the calculation in entropy.tex, under Grade decision
+         tree. Beware, though: the summands on the last line of that
+         calculation are *not* the grades entropy and the summed,
+         weighted outcome entropies. Hop back up to the top of the
+         calculation and recall that we need to subtract the summed,
+         weighted outcome entropies from the grades entropy.
+       *)
+
+      let fun gradeEntropy solutions =
+              let val pairs = map (fn sId => (Map.lookup (sId, grades), sId)) solutions
+              in  Entropy.entropy (Entropy.histogram pairs)
               end
-      in  tmarkInfo tmark
+
+          val solutionsByOutcome = solutionsByOutcome (TestUtil.getOneTest tid tnum db)
+          val sIds = TestUtil.sidsOfDb db
+          val numSolutions = real (length sIds)
+          fun ofOutcome out =
+              let val solutionsForOut = valOf (StringMap.find (solutionsByOutcome, out))
+                  val probabilityOut = real (length solutionsForOut) / numSolutions
+              in  probabilityOut * (gradeEntropy solutionsForOut)
+              end
+
+          val gradeEntropy = gradeEntropy sIds
+          val outcomes = map (fn (out, _) => out) (StringMap.listItemsi solutionsByOutcome)
+          val sumWeightedEntropies = foldl op + 0.0 (map ofOutcome outcomes)
+          val entropy = gradeEntropy - sumWeightedEntropies
+      in (solutionsByOutcome, entropy)
       end
 end
