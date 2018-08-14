@@ -156,7 +156,7 @@ structure Partition = struct
               in  success $ TestResultDecisionTree.toDot tree
               end
             | _ =>
-              ( eprint (String.concatWith " " ["Usage:", prog, "decision-tree [-g filename] outcomes\n"])
+              ( eprint (String.concatWith " " ["Usage:", prog, "decision-tree [-g filename] [--student-tree | --grade-tree] outcomes\n"])
               ; eprint "When given '-g', '--grade-tree' is allowed; otherwise only the default '--student-tree' is allowed"
               ; eprint "Got these args : "; app (fn s => app eprint [" ", s]) argv'
               ; eprint "\n"
