@@ -8,7 +8,6 @@ function usage {
 [[ $# -eq 2 ]] || usage
 
 PARTITION=$(dirname $(dirname $0))
-RANK=$(ls $PARTITION/partition-fest/rank.*)
 
 unit="$1"
 outcomes="$2"
@@ -19,5 +18,5 @@ utln-of-outcomes -u "$unit" < "$outcomes" > "$grades"
 partitions=$(mktemp -t "partitioned-$unit-XXXXX")
 partition-outcomes -u "$unit" < "$outcomes" > "$partitions"
 
-sml @SMLload=$RANK -g "$grades" "$partitions"
+"$PARTITION/partition-fest/partition" -g "$grades" "$partitions"
 

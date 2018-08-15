@@ -1,0 +1,13 @@
+#!/usr/bin/env ksh
+PARTITION="$(dirname $0)"
+MLTON="$PARTITION/swiss-army-knife"
+SMLNJ="$PARTITION/rank.$(sml @SMLsuffix)"
+[[ -x $MLTON ]] || [[ -f $SMLNJ ]] || (cd $PARTITION; mk njdebug)
+
+if [[ $MLTON -nt $SMLNJ ]]; then
+  BIN="$MLTON"
+else
+  BIN="sml @SMLload=$SMLNJ"
+fi
+
+$BIN $@

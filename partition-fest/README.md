@@ -6,17 +6,27 @@ results. The ranking is based on work by Claessen et al.([Cla2010])
 
 ## Building, running
 
-Build information is kept in `mkfile`. The default target builds a
-SML/NJ heap image, and you run the program using that heap image with
-the command
+Build information is kept in `mkfile`. And for most cases, the script
+`partition` is the easiest way to run the software once it's been
+built. If none of the targets are already built then `partition` will
+build one for you (thus the `mk` output on first run). If more than
+one of the targets has already been built then `partition` picks the
+newest one.
 
-    sml @SMLload=image
+If you need to build the project after making changes, you can build
+it with either SML/NJ or MLton. There are two SML/NJ targets:
+`njdebug` and `njbin`. Both build a heap image `rank.SUFFIX` where
+`SUFFIX` is SML/NJ's identifier for your architecture and operating
+system. (You can ask for it via `sml @SMLsuffix`.) The debug build
+will give you proper call trace information. The MLton target is
+`swiss-army-knife`.
 
-where `image` is the name of the heap image, e.g. `rank-x86.darwin`.
-Building with MLton produces a binary `swiss-army-knife` which accepts
-the same arguments and flags as the SML/NJ-based command; that is,
-replacing a command's `sml @SMLload=image` with `swiss-army-knife` is
-supposed to produce the same behavior.
+Running a specific target's output depends on the target. If you went
+the SML/NJ route, then run the resulting heap image with `sml
+@SMLload=rank.SUFFIX`. If you used MLton, then running
+`swiss-army-knife` is all you need to do.
+
+## Dependencies
 
 Although older versions may work, the project's been built with:
 

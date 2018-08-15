@@ -1,6 +1,7 @@
 #!/usr/bin/env ksh -e
 PARTITION=$(dirname $(dirname $0))
-ENTROPY="sml @SMLload=$(ls $PARTITION/partition-fest/rank.*) entropy"
+ENTROPY="$PARTITION/partition-fest/partition entropy"
+echo $ENTROPY
 
 opt=--all
 case $1 in
