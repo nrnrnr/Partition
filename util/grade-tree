@@ -1,0 +1,16 @@
+#!/usr/bin/env ksh
+prog=$(basename $0)
+function usage {
+    echo "Usage: $prog unit outcomes"
+    exit 1
+}
+
+[[ $# -eq 2 ]] || usage
+
+PARTITION=$(dirname $(dirname $0))
+
+unit="$1"
+outcomes="$2"
+
+"$PARTITION/partition-fest/partition" decision-tree --$prog -g <(utln-of-outcomes -u "$unit" "$outcomes") "$outcomes"
+

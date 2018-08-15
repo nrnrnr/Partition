@@ -60,7 +60,10 @@ structure TestResultDecisionTree :> TEST_DECISION_TREE
       end
 
   and decide db0 informationGain tmarks =
-      let fun infoLt ((_, _, e0), (_, _, e1)) = e0 < e1
+      let fun tmarkLT ((tid0, tnum0), (tid1, tnum1)) =
+              tid0 < tid1 orelse tid0 = tid1 andalso tnum0 < tnum1
+          fun infoLt ((tmark0, _, e0), (tmark1, _, e1)) =
+              e0 < e1 orelse Real.==(e0, e1) andalso tmarkLT (tmark1, tmark0)
           fun tmarkInfoGain tmark =
               let val (solutionsByOutcome, entropy) = informationGain db0 tmark
               in  (tmark, solutionsByOutcome, entropy)
