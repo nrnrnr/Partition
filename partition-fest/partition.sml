@@ -39,6 +39,9 @@ structure Partition = struct
        | [file] => file
        | xs => List.last xs (* should be an error *)
 
+  fun gotArgsMsg [] = "No args found"
+    | gotArgsMsg argv = String.concatWith " " ("Got these args:" :: argv)
+
   fun witnessfile options = "witnesses.out" (* not implemented yet *)
   fun gradesfile [] = NONE
     | gradesfile (Gradesfile s :: _) = SOME s
@@ -58,9 +61,9 @@ structure Partition = struct
           ; OS.Process.success
           )
         | (options, argv) =>
-          ( app eprint ["Usage: ", prog, " partition [-c | -u | -o filename | -g filename | -d] outcomefile\n" ]
-          ; eprint "Got these args:" ; app (fn s => app eprint [" ", s]) argv
-          ; eprint "\n"
+          ( app eprint ["Usage: ", prog, " [-c | -u | -o filename | -g filename | -d] outcomefile\n" ]
+          ; eprint "Note: the default mode is partition, and so the mode is omitted from the usage above\n"
+          ; eprint $ gotArgsMsg argv ^ "\n"
           ; OS.Process.failure
           )
 
@@ -100,8 +103,7 @@ structure Partition = struct
          | ([], [outcomes]) => success (Basis.renderEntropy (D.AllTests (fn x => true)) outcomes)
          | (options, argv) =>
            ( app eprint ["Usage: ", prog, " entropy [--single tid tnum | --all | --all-imperfect | --individual] outcomes\n"]
-           ; eprint "Got these args:" ; app (fn s => app eprint [" ", s]) argv
-           ; eprint "\n"
+           ; eprint $ gotArgsMsg argv ^ "\n"
            ; OS.Process.failure
       ))
       handle BadOption s => (app eprint [s, "\n"] ; OS.Process.failure)
@@ -157,9 +159,8 @@ structure Partition = struct
               end
             | _ =>
               ( eprint (String.concatWith " " ["Usage:", prog, "decision-tree [-g filename] [--student-tree | --grade-tree] outcomes\n"])
-              ; eprint "When given '-g', '--grade-tree' is allowed; otherwise only the default '--student-tree' is allowed"
-              ; eprint "Got these args : "; app (fn s => app eprint [" ", s]) argv'
-              ; eprint "\n"
+              ; eprint "When given '-g', '--grade-tree' is allowed; otherwise only the default '--student-tree' is allowed\n"
+              ; eprint $ gotArgsMsg argv ^ "\n"
               ; OS.Process.failure
               )
       end
@@ -173,12 +174,11 @@ structure Partition = struct
       end
     | doReport (prog, argv) =
       ( eprint (String.concatWith " " ["Usage:", prog, "report outcomes\n"])
-      ; eprint "Got these args : "; app (fn s => app eprint [" ", s]) argv
-      ; eprint "\n"
+      ; eprint $ gotArgsMsg argv ^ "\n"
       ; OS.Process.failure
       )
 
-  fun run (prog, argv) =
+  fun run (_, argv) =
       let val (mode, argv) =
               case argv
                of ("partition" :: argv) => (doPartition, argv)
@@ -186,6 +186,6 @@ structure Partition = struct
                 | ("decision-tree" :: argv) => (doTree, argv)
                 | ("report" :: argv) => (doReport, argv)
                 | _ => (doPartition, argv)
-      in  mode (prog, argv)
+      in  mode ("partition", argv)
       end
 end
