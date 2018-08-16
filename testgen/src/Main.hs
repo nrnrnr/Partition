@@ -82,9 +82,25 @@ listLikelyContaining = do
                            ]
   pure (x, xs)
 
-points :: Gen [(SchemeValue, SchemeValue)]
-points = listOf1 $ liftArbitrary2 point point
-  where point = liftM (SAtom . SInt) $ arbitrary
+moreDistant :: (Int32, Int32) -> (Int32, Int32)
+moreDistant (x, y) =
+  if x - y < 0
+  then (x, y + 1)
+  else (x + 1, y)
+
+listWithUniqueMaximalPoint :: Gen [(SchemeValue, SchemeValue)]
+listWithUniqueMaximalPoint = do
+  ps@((x0, y0) : points) <- listOf1 $ arbitrary
+  let (x, y) = maximalPoint (x0, y0) points
+  let inj = SAtom . SInt
+  pure $ map (\(x, y) -> (inj x, inj y)) $ moreDistant (x, y) : ps
+
+maximalPoint :: (Int32, Int32) -> [(Int32, Int32)] -> (Int32, Int32)
+maximalPoint (x, y) [] = (x, y)
+maximalPoint (x, y) ((x0, y0) : points) =
+  if abs (x - y) >= abs (x0 - y0)
+  then maximalPoint (x, y) points
+  else maximalPoint (x0, y0) points
 
 data Options = Options { size :: Int
                        , suiteSize :: Int
@@ -113,5 +129,5 @@ main = do
        "zip" -> t (twoSameLength, renderZip)
        "drop" -> t (liftArbitrary2 arbitrarySizedNatural arbitrary, renderDrop)
        "countall" -> t (listLikelyContaining, renderCountall)
-       "maximally-distant-point" -> t (points, renderMaximallyDistantPoint)
+       "maximally-distant-point" -> t (listWithUniqueMaximalPoint, renderMaximallyDistantPoint)
        name -> die $ "Unsupported test '" ++ name ++ "'"
