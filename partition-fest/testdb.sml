@@ -61,6 +61,13 @@ functor TestDB (structure M1 : STRING_MAP
            in f(implode k, implode k2, makeList (list, []), y3)
 	   end)
          y2 m)
-    y map
+     y map
 
+  fun restrict db solutions =
+      fold (fn entry as (tid, tnum, sid, outcome, db') =>
+               if List.exists (fn sid0 => sid = sid0) solutions
+               then bind entry
+               else db')
+           empty
+           db
 end

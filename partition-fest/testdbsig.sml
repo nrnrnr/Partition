@@ -14,5 +14,5 @@ sig
   (*calls function once for each student in the DB, regardless of whether they
     have a test result, allowing for DNRs *)
   val foldStudents : ((string * string * (string * Outcome.outcome) list * 'b) -> 'b) -> 'b -> db -> 'b
-  
+  val restrict : db -> sid list -> db
 end

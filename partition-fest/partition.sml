@@ -13,6 +13,8 @@ structure Partition = struct
       | PrintDistribution of TextIO.outstream
       | StudentTree
       | GradeTree
+      | WeightOfEvidence of string
+      | TreeReport
 
   fun options argv =
     let fun eat (options', "-c" :: argv) = eat (RankClaessen :: options', argv)
@@ -25,6 +27,8 @@ structure Partition = struct
           | eat (options', "-d" :: argv) = eat (PrintDistribution TextIO.stdErr :: options', argv)
           | eat (options', "--student-tree" :: argv) = eat (StudentTree :: options', argv)
           | eat (options', "--grade-tree" :: argv) = eat (GradeTree :: options', argv)
+          | eat (options', "--weight-of-evidence" :: filename :: argv) = eat (WeightOfEvidence filename :: options', argv)
+          | eat (options', "--tree-report" :: argv) = eat (TreeReport :: options', argv)
           | eat (options', argv) = (options', argv)
         val (options', argv) = eat ([], argv)
     in  (rev options', argv)
@@ -67,9 +71,6 @@ structure Partition = struct
           ; OS.Process.failure
           )
 
-
-
-
   exception BadOption of string
   fun checkSingleTest tid tnum =
       case Int.fromString tnum
@@ -108,14 +109,15 @@ structure Partition = struct
       ))
       handle BadOption s => (app eprint [s, "\n"] ; OS.Process.failure)
 
+  fun splitGradesFile [] = (NONE, [])
+    | splitGradesFile (Gradesfile s :: rest) = (SOME s, rest)
+    | splitGradesFile (other :: rest) =
+      let val (g, r') = splitGradesFile rest
+      in  (g, other :: r')
+      end
+
   fun doTree (prog, argv') =
       let val (options, argv) = options argv'
-          fun gradesFile [] = (NONE, [])
-            | gradesFile (Gradesfile s :: rest) = (SOME s, rest)
-            | gradesFile (other :: rest) =
-              let val (g, r') = gradesFile rest
-              in  (g, other :: r')
-              end
           fun treeStyle [] = (SOME StudentTree, [])
             | treeStyle (StudentTree :: rest) = (SOME StudentTree, rest)
             | treeStyle (GradeTree :: rest) = (SOME GradeTree, rest)
@@ -123,7 +125,7 @@ structure Partition = struct
               let val (s, r') = treeStyle rest
               in  (s, other :: r')
               end
-          val (grades, options) = gradesFile options
+          val (grades, options) = splitGradesFile options
           val (treeStyle, options) = treeStyle options
           fun makeStudentTree ins =
               let val outcomes = FileReader.readToMap ins
@@ -165,18 +167,44 @@ structure Partition = struct
               )
       end
 
-  fun doReport (prog, [outcomes]) =
-      let val db = Util.withInputFromFile outcomes FileReader.readToMap
-          val tree = TestResultDecisionTree.make { outcomes = db
-                                                 , informationGain = InformationGain.forStudentTree
-                                                 }
-      in  success $ DecisionTreeReport.format $ DecisionTreeReport.make tree db
+  fun splitReportStyle [] = (NONE, [])
+    | splitReportStyle (WeightOfEvidence f :: rest) = (SOME (WeightOfEvidence f), rest)
+    | splitReportStyle (TreeReport :: rest) = (SOME TreeReport, rest)
+    | splitReportStyle (other :: rest) =
+      let val (s, r') = splitReportStyle rest
+      in  (s, other :: r')
       end
-    | doReport (prog, argv) =
-      ( eprint (String.concatWith " " ["Usage:", prog, "report outcomes\n"])
-      ; eprint $ gotArgsMsg argv ^ "\n"
-      ; OS.Process.failure
-      )
+
+  fun doReport (prog, argv') =
+      let val (options, argv) = options argv'
+          val (reportStyle, options) = splitReportStyle options
+      in case (reportStyle, argv)
+           of (SOME TreeReport, [outcomes]) =>
+              let val db = Util.withInputFromFile outcomes FileReader.readToMap
+                  val tree = TestResultDecisionTree.make { outcomes = db
+                                                         , informationGain = InformationGain.forStudentTree
+                                                         }
+              in  success $ DecisionTreeReport.format $ DecisionTreeReport.make tree db
+              end
+            | (NONE, [outcomes]) =>
+              let val db = Util.withInputFromFile outcomes FileReader.readToMap
+                  val tree = TestResultDecisionTree.make { outcomes = db
+                                                         , informationGain = InformationGain.forStudentTree
+                                                         }
+              in  success $ DecisionTreeReport.format $ DecisionTreeReport.make tree db
+              end
+            | (SOME (WeightOfEvidence grades), [outcomes]) =>
+              let val db = Util.withInputFromFile outcomes FileReader.readToMap
+                  val grades = Util.withInputFromFile grades GradeReader.readToMap
+                  val report = TestWeightOfEvidenceReport.make db grades
+              in  success $ TestWeightOfEvidenceReport.format report
+              end
+            | _ =>
+              ( eprint (String.concatWith " " ["Usage:", prog, "report [--tree-report | --weight-of-evidence grades] outcomes\n"])
+              ; eprint $ gotArgsMsg argv ^ "\n"
+              ; OS.Process.failure
+              )
+      end
 
   fun run (_, argv) =
       let val (mode, argv) =

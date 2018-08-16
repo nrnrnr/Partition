@@ -53,7 +53,7 @@ structure TestResultDecisionTree :> TEST_DECISION_TREE
       let val decide = (fn db => fn tmarks => decide db informationGain tmarks)
           fun treeOfSplit sids NONE = Leaf sids
             | treeOfSplit sids (SOME {decided = (d, sidss), remaining = remaining, entropy = entropy}) =
-              let fun subdecide (l, sids) = (l, treeOfSplit sids (decide (restrict db sids) remaining))
+              let fun subdecide (l, sids) = (l, treeOfSplit sids (decide (DB.restrict db sids) remaining))
               in  Branch (entropy, d, map subdecide sidss)
               end
       in  treeOfSplit (TestUtil.sidsOfDb db) $ decide db (TestUtil.tmarksOfDb db)
@@ -95,14 +95,6 @@ structure TestResultDecisionTree :> TEST_DECISION_TREE
                           | _ => raise Invariant ("Got no outcomes for test '" ^ tid ^ " " ^ Int.toString tnum ^ "'")
                     end
       end
-
-  and restrict db solutions =
-      DB.fold (fn entry as (tid, tnum, sid, outcome, db') =>
-                  if List.exists (fn sid0 => sid = sid0) solutions
-                  then DB.bind entry
-                  else db')
-              DB.empty
-              db
 
   fun fmtReal r = Real.fmt (StringCvt.FIX $ SOME 3) r
   fun labelOf entropy (tid, tnum) = String.concatWith " " [ tid
