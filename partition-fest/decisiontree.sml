@@ -96,10 +96,9 @@ structure TestResultDecisionTree :> TEST_DECISION_TREE
                     end
       end
 
-  fun fmtReal r = Real.fmt (StringCvt.FIX $ SOME 3) r
   fun labelOf entropy (tid, tnum) = String.concatWith " " [ tid
                                                           , Int.toString tnum
-                                                          , "(" ^ fmtReal entropy ^ ")"
+                                                          , "(" ^ Util.fmtReal entropy ^ ")"
                                                           ]
 
   fun labeledDecisions (Leaf _) = []
@@ -145,7 +144,7 @@ structure TestResultDecisionTree :> TEST_DECISION_TREE
                       let fun mkSubtreeInEdge to =
                               let val e = Dot.edge { from = branchName, to = to }
                               in  Dot.edgeWithAttrs e [ ("label", getOpt (subdecision, ""))
-                                                      , ("penwidth", fmtReal $ edgeWidth entropy)
+                                                      , ("penwidth", Util.fmtReal $ edgeWidth entropy)
                                                       , ("color", "gray50")
                                                       ]
                               end

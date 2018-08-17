@@ -17,9 +17,13 @@ signature UTILITIES = sig
   val withInputFromFile : string -> (TextIO.instream -> 'b) -> 'b
   val renderSolutionIdsNarrow : string list -> string
   val unique : ''a list -> ''a list
+  val fmtReal : real -> string
 end
 
 structure Util : UTILITIES = struct
+infixr 0 $
+fun f $ x = f x
+
 fun insertion_sort _ [] = []
  | insertion_sort cmp (x::xs) = insert cmp x (insertion_sort cmp xs)
 and insert _ x [] = [x]
@@ -92,4 +96,11 @@ fun unique [] = []
     then unique xs
     else x :: (unique xs)
 
+fun fmtReal r =
+    let val fmt = Real.fmt (StringCvt.FIX $ SOME 3)
+        val (sign, r) = if Real.signBit r
+                        then ("-", ~ r)
+                        else ("", r)
+    in  sign ^ fmt r
+    end
 end
