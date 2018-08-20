@@ -60,5 +60,6 @@ group is $/basis.cm
   report.sml
   decisiontree.sml
   testutil.sml
+  utln.sml
 
   $/smlnj-lib.cm

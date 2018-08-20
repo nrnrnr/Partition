@@ -18,6 +18,7 @@ signature UTILITIES = sig
   val renderSolutionIdsNarrow : string list -> string
   val unique : ''a list -> ''a list
   val fmtReal : real -> string
+  val fmtReal' : int -> real -> string
 end
 
 structure Util : UTILITIES = struct
@@ -98,6 +99,13 @@ fun unique [] = []
 
 fun fmtReal r =
     let val fmt = Real.fmt (StringCvt.FIX $ SOME 3)
+        val (sign, r) = if Real.signBit r
+                        then ("-", ~ r)
+                        else ("", r)
+    in  sign ^ fmt r
+    end
+fun fmtReal' n r =
+    let val fmt = Real.fmt (StringCvt.FIX $ SOME n)
         val (sign, r) = if Real.signBit r
                         then ("-", ~ r)
                         else ("", r)

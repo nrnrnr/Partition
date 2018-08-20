@@ -178,26 +178,27 @@ structure Partition = struct
   fun doReport (prog, argv') =
       let val (options, argv) = options argv'
           val (reportStyle, options) = splitReportStyle options
+          val success = success o Utln.format ""
       in case (reportStyle, argv)
            of (SOME TreeReport, [outcomes]) =>
               let val db = Util.withInputFromFile outcomes FileReader.readToMap
                   val tree = TestResultDecisionTree.make { outcomes = db
                                                          , informationGain = InformationGain.forStudentTree
                                                          }
-              in  success $ DecisionTreeReport.format $ DecisionTreeReport.make tree db
+              in  success $ DecisionTreeReport.utlnEntries $ DecisionTreeReport.make tree db
               end
             | (NONE, [outcomes]) =>
               let val db = Util.withInputFromFile outcomes FileReader.readToMap
                   val tree = TestResultDecisionTree.make { outcomes = db
                                                          , informationGain = InformationGain.forStudentTree
                                                          }
-              in  success $ DecisionTreeReport.format $ DecisionTreeReport.make tree db
+              in  success $ DecisionTreeReport.utlnEntries $ DecisionTreeReport.make tree db
               end
             | (SOME (WeightOfEvidence grades), [outcomes]) =>
               let val db = Util.withInputFromFile outcomes FileReader.readToMap
                   val grades = Util.withInputFromFile grades GradeReader.readToMap
                   val report = TestWeightOfEvidenceReport.make db grades
-              in  success $ TestWeightOfEvidenceReport.format report
+              in  success $ TestWeightOfEvidenceReport.utlnEntries report
               end
             | _ =>
               ( eprint (String.concatWith " " ["Usage:", prog, "report [--tree-report | --weight-of-evidence grades] outcomes\n"])

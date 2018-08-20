@@ -4,12 +4,8 @@ structure ReportUtil :> sig
               type tnum = int
 
               type tmark = (tid * tnum)
-              type report = { feedback : (tmark * string) list
-                            , comments : string list
-                            }
               val describe : DB.db -> (sid * tmark) -> string
-              val format : (sid * report) list -> string
-              val empty : report
+              val fmtFeedback : (tmark * string) -> string
           end
 = struct
   infixr 0 $
@@ -33,22 +29,10 @@ structure ReportUtil :> sig
            | DNR => raise Invariant $ "Got DNR for " ^ String.concatWith " " [sid, tid, tnum]
       end
 
-  fun format reports =
-      let fun fmtEntry ((tid, tnum), description) =
-              String.concatWith " " ["On", tid, "test", Int.toString tnum ^ ","
-                                    , description
-                                    ]
-          fun fmtReportFor sId {feedback, comments} =
-              let val entries = map fmtEntry feedback
-                  val comments = map (fn c => "  (X: " ^ c ^ ")") comments
-              in  String.concatWith "\n" $
-                                    sId :: map (fn e => "  " ^ e) entries
-                                    @ comments
-                                    @ [""]
-              end
-      in  String.concatWith "\n" $ map (fn (s, r) => fmtReportFor s r) reports
-      end
-  val empty = { feedback = [], comments = [] }
+  fun fmtFeedback ((tid, tnum), description) =
+      String.concatWith " " ["On", tid, "test", Int.toString tnum ^ ","
+                            , description
+                            ]
 end
 
 structure DecisionTreeReport :> sig
@@ -57,11 +41,9 @@ structure DecisionTreeReport :> sig
               type tnum = int
 
               type tmark = (tid * tnum)
-              type report = { feedback : (tmark * string) list
-                            , comments : string list
-                            }
+              type report = { feedback : (tmark * string) list }
               val make : TestResultDecisionTree.decisionTree -> DB.db -> (sid * report) list
-              val format : (sid * report) list -> string
+              val utlnEntries : (sid * report) list -> Utln.entry list
           end
 = struct
   structure T = TestResultDecisionTree
@@ -72,12 +54,10 @@ structure DecisionTreeReport :> sig
   type tnum = int
 
   type tmark = (tid * tnum)
-  type report = { feedback : (tmark * string) list
-                , comments : string list
-                }
+  type report = { feedback : (tmark * string) list }
   val reportSize = 3
 
-  fun make (T.Leaf sIds) _ = map (fn sId => (sId, ReportUtil.empty)) sIds
+  fun make (T.Leaf sIds) _ = map (fn sId => (sId, { feedback = [] })) sIds
     | make t db = nonemptyReport t (ReportUtil.describe db)
 
   and nonemptyReport t describe =
@@ -85,9 +65,7 @@ structure DecisionTreeReport :> sig
               let val wDecisions = ListMergeSort.sort (fn ((e0, _), (e1, _)) => e0 < e1) wDecisions
                   val tmarks = map (fn (_, tmark) => tmark) wDecisions
                   val highest = List.take (tmarks, Int.min (length wDecisions, reportSize))
-                  fun reportFor sid = (sid, { feedback = map (fn tmark => (tmark, describe (sid, tmark))) highest
-                                            , comments = []
-                                      })
+                  fun reportFor sid = (sid, { feedback = map (fn tmark => (tmark, describe (sid, tmark))) highest })
               in  map reportFor sIds
               end
             | reportOfTree' (T.Branch (entropy, decision, subs)) wDecisions =
@@ -98,7 +76,15 @@ structure DecisionTreeReport :> sig
       in  reportOfTree' t []
       end
 
-  val format = ReportUtil.format
+  fun utlnEntries reports =
+      let fun entryFor (sid, {feedback}) =
+              { sid = sid
+              , grade = Grade.UNKNOWN "I"
+              , commentary = map ReportUtil.fmtFeedback feedback
+              , internalComments = []
+              }
+      in  map entryFor reports
+      end
 end
 
 structure TestWeightOfEvidenceReport :> sig
@@ -108,10 +94,11 @@ structure TestWeightOfEvidenceReport :> sig
 
               type tmark = (tid * tnum)
               type report = { feedback : (tmark * string) list
-                            , comments : string list
+                            , grade : Grade.grade
+                            , weight : real
                             }
               val make : DB.db -> Grade.grade Map.map -> (sid * report) list
-              val format : (sid * report) list -> string
+              val utlnEntries : (sid * report) list -> Utln.entry list
           end
 = struct
   infixr 0 $
@@ -127,7 +114,8 @@ structure TestWeightOfEvidenceReport :> sig
   type tmark = (tid * tnum)
   type outcome = string
   type report = { feedback : (tmark * string) list
-                , comments : string list
+                , grade : Grade.grade
+                , weight : real
                 }
 
   (* The observation type determines how many entries a student gets
@@ -198,9 +186,9 @@ structure TestWeightOfEvidenceReport :> sig
           val gradeRatio = gradeRatio sids grades
           fun reportFor (sid, m) =
               let val db = DB.restrict db [sid]
+                  val g = Map.lookup (sid, grades)
                   fun weight obs =
-                      let val g = Map.lookup (sid, grades)
-                          fun evidenceFor h =
+                      let fun evidenceFor h =
                               let val similar = H.count (g, h)
                                   val total = H.total h
                               in  if similar = total
@@ -219,11 +207,23 @@ structure TestWeightOfEvidenceReport :> sig
                   val ((tmark, _), weight) = valOf (enumerate db biggerObs NONE)
                   val report = (tmark, ReportUtil.describe db (sid, tmark))
               in  SolutionMap.insert (m, sid, { feedback = [report]
-                                              , comments = ["Weight: " ^ Util.fmtReal weight]
+                                              , grade = g
+                                              , weight = weight
                                               })
               end
           val reports = foldl reportFor SolutionMap.empty sids
       in  SolutionMap.listItemsi reports
       end
-  val format = ReportUtil.format
+
+  fun utlnEntries reports =
+      let fun entryFor (sid, {feedback, grade, weight}) =
+              { sid = sid
+              , grade = grade
+              , commentary = map ReportUtil.fmtFeedback feedback
+              , internalComments = ["Weight: " ^ Util.fmtReal' 1 weight]
+              }
+          fun reportLt ((_, r0 : report), (_, r1 : report)) = #weight r0 < #weight r1
+          val reports = ListMergeSort.sort reportLt reports
+      in  map entryFor reports
+      end
 end
