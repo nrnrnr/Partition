@@ -125,13 +125,18 @@ structure TestWeightOfEvidenceReport :> sig
      about the sizes of the list---e.g. that all of them need to be
      the same size.
    *)
-  type observation = (tmark * outcome)
+  type observation = ((tmark * outcome) * (tmark * outcome))
   structure ObservationKey = struct
       type ord_key = observation
-      fun compare ((tmark0, outcome0), (tmark1, outcome1)) =
-          case TmarkKey.compare (tmark0, tmark1)
-           of EQUAL => String.compare (outcome0, outcome1)
-           | order => order
+      fun compare ((t00, t01), (t10, t11)) =
+          let fun compare' ((tmark0, outcome0), (tmark1, outcome1)) =
+                  case TmarkKey.compare (tmark0, tmark1)
+                   of EQUAL => String.compare (outcome0, outcome1)
+                    | order => order
+          in  case compare' (t00, t10)
+                of EQUAL => compare' (t01, t11)
+                 | order => order
+          end
     end
   structure ObservationMap = BinaryMapFn(ObservationKey)
   type histogram = Grade.grade H.counter
@@ -142,23 +147,29 @@ structure TestWeightOfEvidenceReport :> sig
       in  f $ getOpt (h, H.zeroes)
       end
   fun fmap f obs m = ObservationMap.insert (m, obs, fobs f obs m)
-  fun enumerate db add init =
-      let fun add' (tid, tnum, _, outcome, v) =
-              let val tnum = valOf (Int.fromString tnum)
-                  val obs = ((tid, tnum), Outcome.toString outcome)
-              in  add (obs, v)
+  fun enumerate sid db add init =
+      let val db = DB.restrict db [sid]
+          val tmarks = TestUtil.tmarksOfDb db
+          fun withOutcome (tid, tnum) =
+              let val outcome = DB.lookup (tid, Int.toString tnum, sid, db)
+              in  ((tid, tnum), Outcome.toString outcome)
               end
-      in  DB.fold add' init db
+          val observations = Util.permutations (map withOutcome tmarks) 2
+          fun add' ([obs0, obs1], v) = add ((obs0, obs1), v)
+            | add' _ = let exception ThisCan'tHappen in raise ThisCan'tHappen end
+      in  foldl add' init observations
       end
 
   fun printWeights db sid weight =
-      let fun debugWeights (obs as ((tid, tnum), outcome), _) =
+      let fun debugWeights (obs as (((tid0, tnum0), outcome0), ((tid1, tnum1), outcome1)), _) =
               let val w = weight obs
-                  val tnum = Int.toString tnum
-                  val tmark = tid ^ "," ^ tnum
-              in  eprintln $ String.concatWith " " [sid, tmark, outcome, Util.fmtReal w]
+                  val tnum0 = Int.toString tnum0
+                  val tmark0 = tid0 ^ "," ^ tnum0
+                  val tnum1 = Int.toString tnum1
+                  val tmark1 = tid0 ^ "," ^ tnum1
+              in  eprintln $ String.concatWith " " [sid, tmark0, outcome0, tmark1, outcome1, Util.fmtReal w]
               end
-      in ( enumerate db debugWeights ()
+      in ( enumerate sid db debugWeights ()
          ; eprintln ""
          )
       end
@@ -178,9 +189,8 @@ structure TestWeightOfEvidenceReport :> sig
       let val sids = TestUtil.sidsOfDb db
           fun update (sid, m) =
               let val grade = Map.lookup (sid, grades)
-                  val db = DB.restrict db [sid]
                   fun add (obs, m) = fmap (fn h => H.inc (grade, h)) obs m
-              in  enumerate db add m
+              in  enumerate sid db add m
               end
           val observationMap = foldl update ObservationMap.empty sids
           val gradeRatio = gradeRatio sids grades
@@ -203,10 +213,10 @@ structure TestWeightOfEvidenceReport :> sig
                                                              then SOME (obs0, w0)
                                                              else SOME (obs1, w1)
                                                           end
-
-                  val ((tmark, _), weight) = valOf (enumerate db biggerObs NONE)
-                  val report = (tmark, ReportUtil.describe db (sid, tmark))
-              in  SolutionMap.insert (m, sid, { feedback = [report]
+                  val (((tmark0, _), (tmark1, _)), weight) = valOf (enumerate sid db biggerObs NONE)
+                  val report0 = (tmark0, ReportUtil.describe db (sid, tmark0))
+                  val report1 = (tmark1, ReportUtil.describe db (sid, tmark1))
+              in  SolutionMap.insert (m, sid, { feedback = [report0, report1]
                                               , grade = g
                                               , weight = weight
                                               })

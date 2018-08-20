@@ -19,6 +19,7 @@ signature UTILITIES = sig
   val unique : ''a list -> ''a list
   val fmtReal : real -> string
   val fmtReal' : int -> real -> string
+  val permutations : ''a list -> int -> ''a list list
 end
 
 structure Util : UTILITIES = struct
@@ -110,5 +111,20 @@ fun fmtReal' n r =
                         then ("-", ~ r)
                         else ("", r)
     in  sign ^ fmt r
+    end
+
+fun removeFirst x [] = []
+  | removeFirst x (y::ys) = if x = y
+                            then ys
+                            else y :: (removeFirst x ys)
+
+fun permutations xs 0 = []
+  | permutations xs 1 = map (fn x => [x]) xs
+  | permutations xs n =
+    let fun permsFor x =
+            let val xperms = permutations (removeFirst x xs) (n - 1)
+            in  map (fn c => x :: c) xperms
+            end
+    in  List.concat (map permsFor xs)
     end
 end
