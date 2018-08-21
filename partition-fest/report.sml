@@ -37,11 +37,7 @@ end
 
 structure DecisionTreeReport :> sig
               type sid = string
-              type tid = string
-              type tnum = int
-
-              type tmark = (tid * tnum)
-              type report = { feedback : (tmark * string) list }
+              type report
               val make : TestResultDecisionTree.decisionTree -> DB.db -> (sid * report) list
               val utlnEntries : (sid * report) list -> Utln.entry list
           end
@@ -89,15 +85,7 @@ end
 
 structure TestWeightOfEvidenceReport :> sig
               type sid = string
-              type tid = string
-              type tnum = int
-
-              type tmark = (tid * tnum)
-              type report = { feedback : (tmark * string) list
-                            , grade : Grade.grade
-                            , weight : real
-                            , ties : int
-                            }
+              type report
               val make : DB.db -> Grade.grade Map.map -> (sid * report) list
               val utlnEntries : (sid * report) list -> Utln.entry list
           end
@@ -119,6 +107,8 @@ structure TestWeightOfEvidenceReport :> sig
                 , grade : Grade.grade
                 , weight : real
                 , ties : int
+                , prior : real
+                , posterior : real
                 }
 
   (* The observation type determines how many entries a student gets
@@ -209,7 +199,7 @@ structure TestWeightOfEvidenceReport :> sig
                                    then 0.5
                                    else real (total - similar))
                               end
-                      in  Math.log10 $ fobs evidenceFor obs observationMap * gradeRatio g
+                      in  10.0 * (Math.log10 $ fobs evidenceFor obs observationMap * gradeRatio g)
                       end
                   fun biggerObs (obs, NONE) = SOME (obs, weight obs)
                     | biggerObs (obs1, SOME (obs0, w0)) = let val w1 = weight obs1
@@ -226,13 +216,15 @@ structure TestWeightOfEvidenceReport :> sig
                                val ties = length $ List.filter (fn obs' => Real.== (w, weight obs')) rest
                            in (t0, t1, w, ties)
                            end
-                         | _ => raise Invariant $ "Found no maximal observation for " ^ sid
+                         | _ => raise Invariant $ "Found no observations for " ^ sid
                   val report0 = (tmark0, ReportUtil.describe db (sid, tmark0))
                   val report1 = (tmark1, ReportUtil.describe db (sid, tmark1))
               in  SolutionMap.insert (m, sid, { feedback = [report0, report1]
                                               , grade = g
                                               , weight = weight
                                               , ties = ties
+                                              , prior = 10.0 * Math.log10 (1.0 / gradeRatio g)
+                                              , posterior = prior + weight
                                               })
               end
           val reports = foldl reportFor SolutionMap.empty sids
@@ -240,14 +232,18 @@ structure TestWeightOfEvidenceReport :> sig
       end
 
   fun utlnEntries reports =
-      let fun entryFor (sid, {feedback, grade, weight, ties}) =
+      let val fmt = Util.fmtReal' 1
+          fun entryFor (sid, {feedback, grade, weight, ties, prior, posterior}) =
               { sid = sid
               , grade = grade
               , commentary = map ReportUtil.fmtFeedback feedback
-              , internalComments = "Weight: " ^ Util.fmtReal' 1 weight ::
-                                   (case ties
-                                     of 0 => []
-                                      | _  => ["Ties for highest weight: " ^ Int.toString ties])
+              , internalComments = String.concatWith ", " [ "Weight: " ^ fmt weight
+                                                          , "Prior: " ^ fmt prior
+                                                          , "Posterior: " ^ fmt posterior
+                                                          ]
+                                   :: (case ties
+                                        of 0 => []
+                                         | _  => ["Ties for highest weight: " ^ Int.toString ties])
               }
           fun reportLt ((_, r0 : report), (_, r1 : report)) = #weight r0 < #weight r1
           val reports = ListMergeSort.sort reportLt reports
