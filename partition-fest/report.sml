@@ -207,8 +207,9 @@ structure TestWeightOfEvidenceReport :> sig
                                                              then SOME (obs0, w0)
                                                              else SOME (obs1, w1)
                                                           end
-                  val observations = enumerate sid db op :: []
-                  val observations = ListMergeSort.sort (fn (obs0, obs1) => weight obs0 < weight obs1) observations
+                  fun observationLt (obs0, obs1) =
+                      weight obs0 < weight obs1 orelse ObservationKey.compare (obs1, obs0) = LESS
+                  val observations = ListMergeSort.sort observationLt $ enumerate sid db op :: []
                   val (tmark0, tmark1, weight, ties) =
                       case observations
                         of ((obs as ((t0, _), (t1, _))) :: rest) =>
@@ -219,11 +220,12 @@ structure TestWeightOfEvidenceReport :> sig
                          | _ => raise Invariant $ "Found no observations for " ^ sid
                   val report0 = (tmark0, ReportUtil.describe db (sid, tmark0))
                   val report1 = (tmark1, ReportUtil.describe db (sid, tmark1))
+                  val prior = 10.0 * Math.log10 (1.0 / gradeRatio g)
               in  SolutionMap.insert (m, sid, { feedback = [report0, report1]
                                               , grade = g
                                               , weight = weight
                                               , ties = ties
-                                              , prior = 10.0 * Math.log10 (1.0 / gradeRatio g)
+                                              , prior = prior
                                               , posterior = prior + weight
                                               })
               end
