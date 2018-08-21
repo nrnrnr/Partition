@@ -201,9 +201,10 @@ structure TestWeightOfEvidenceReport :> sig
                       let fun evidenceFor h =
                               let val similar = H.count (g, h)
                                   val total = H.total h
-                              in  if similar = total
-                                  then 0.5 (* dodge that NR talked about *)
-                                  else real similar / real (total - similar)
+                              in  real similar /
+                                  (if similar = total
+                                   then 0.5
+                                   else real (total - similar))
                               end
                       in  fobs evidenceFor obs observationMap * gradeRatio g
                       end
