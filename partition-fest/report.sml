@@ -96,6 +96,7 @@ structure TestWeightOfEvidenceReport :> sig
               type report = { feedback : (tmark * string) list
                             , grade : Grade.grade
                             , weight : real
+                            , ties : int
                             }
               val make : DB.db -> Grade.grade Map.map -> (sid * report) list
               val utlnEntries : (sid * report) list -> Utln.entry list
@@ -103,6 +104,7 @@ structure TestWeightOfEvidenceReport :> sig
 = struct
   infixr 0 $
   fun f $ x = f x
+  exception Invariant of string
   fun eprint s = TextIO.output(TextIO.stdErr, s)
   fun eprintln s = (eprint $ s ^ "\n")
   structure H = Histogram
@@ -116,6 +118,7 @@ structure TestWeightOfEvidenceReport :> sig
   type report = { feedback : (tmark * string) list
                 , grade : Grade.grade
                 , weight : real
+                , ties : int
                 }
 
   (* The observation type determines how many entries a student gets
@@ -154,7 +157,7 @@ structure TestWeightOfEvidenceReport :> sig
               let val outcome = DB.lookup (tid, Int.toString tnum, sid, db)
               in  ((tid, tnum), Outcome.toString outcome)
               end
-          val observations = Util.permutations (map withOutcome tmarks) 2
+          val observations = Util.combinations (map withOutcome tmarks) 2
           fun add' ([obs0, obs1], v) = add ((obs0, obs1), v)
             | add' _ = let exception ThisCan'tHappen in raise ThisCan'tHappen end
       in  foldl add' init observations
@@ -214,12 +217,22 @@ structure TestWeightOfEvidenceReport :> sig
                                                              then SOME (obs0, w0)
                                                              else SOME (obs1, w1)
                                                           end
-                  val (((tmark0, _), (tmark1, _)), weight) = valOf (enumerate sid db biggerObs NONE)
+                  val observations = enumerate sid db op :: []
+                  val observations = ListMergeSort.sort (fn (obs0, obs1) => weight obs0 < weight obs1) observations
+                  val (tmark0, tmark1, weight, ties) =
+                      case observations
+                        of ((obs as ((t0, _), (t1, _))) :: rest) =>
+                           let val w = weight obs
+                               val ties = length $ List.filter (fn obs' => Real.== (w, weight obs')) rest
+                           in (t0, t1, w, ties)
+                           end
+                         | _ => raise Invariant $ "Found no maximal observation for " ^ sid
                   val report0 = (tmark0, ReportUtil.describe db (sid, tmark0))
                   val report1 = (tmark1, ReportUtil.describe db (sid, tmark1))
               in  SolutionMap.insert (m, sid, { feedback = [report0, report1]
                                               , grade = g
                                               , weight = weight
+                                              , ties = ties
                                               })
               end
           val reports = foldl reportFor SolutionMap.empty sids
@@ -227,11 +240,14 @@ structure TestWeightOfEvidenceReport :> sig
       end
 
   fun utlnEntries reports =
-      let fun entryFor (sid, {feedback, grade, weight}) =
+      let fun entryFor (sid, {feedback, grade, weight, ties}) =
               { sid = sid
               , grade = grade
               , commentary = map ReportUtil.fmtFeedback feedback
-              , internalComments = ["Weight: " ^ Util.fmtReal' 1 weight]
+              , internalComments = "Weight: " ^ Util.fmtReal' 1 weight ::
+                                   (case ties
+                                     of 0 => []
+                                      | _  => ["Ties for highest weight: " ^ Int.toString ties])
               }
           fun reportLt ((_, r0 : report), (_, r1 : report)) = #weight r0 < #weight r1
           val reports = ListMergeSort.sort reportLt reports
