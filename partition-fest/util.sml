@@ -20,6 +20,7 @@ signature UTILITIES = sig
   val fmtReal : real -> string
   val fmtReal' : int -> real -> string
   val permutations : ''a list -> int -> ''a list list
+  val combinations : 'a list -> int -> 'a list list
 end
 
 structure Util : UTILITIES = struct
@@ -126,5 +127,14 @@ fun permutations xs 0 = []
             in  map (fn c => x :: c) xperms
             end
     in  List.concat (map permsFor xs)
+    end
+
+fun combinations xs 0 = []
+  | combinations [] n = []
+  | combinations xs 1 = map (fn x => [x]) xs
+  | combinations (x::xs) n =
+    let val combs = combinations xs (n - 1)
+        val combs = map (fn c => x :: c) combs
+    in  combs @ combinations xs n
     end
 end
