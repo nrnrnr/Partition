@@ -206,7 +206,7 @@ structure TestWeightOfEvidenceReport :> sig
                                    then 0.5
                                    else real (total - similar))
                               end
-                      in  fobs evidenceFor obs observationMap * gradeRatio g
+                      in  Math.log10 $ fobs evidenceFor obs observationMap * gradeRatio g
                       end
                   fun biggerObs (obs, NONE) = SOME (obs, weight obs)
                     | biggerObs (obs1, SOME (obs0, w0)) = let val w1 = weight obs1

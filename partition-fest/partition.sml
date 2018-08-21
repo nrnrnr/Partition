@@ -15,6 +15,7 @@ structure Partition = struct
       | GradeTree
       | WeightOfEvidence of string
       | TreeReport
+      | Condense
 
   fun options argv =
     let fun eat (options', "-c" :: argv) = eat (RankClaessen :: options', argv)
@@ -29,6 +30,7 @@ structure Partition = struct
           | eat (options', "--grade-tree" :: argv) = eat (GradeTree :: options', argv)
           | eat (options', "--weight-of-evidence" :: filename :: argv) = eat (WeightOfEvidence filename :: options', argv)
           | eat (options', "--tree-report" :: argv) = eat (TreeReport :: options', argv)
+          | eat (options', "--condense" :: argv) = eat (Condense :: options', argv)
           | eat (options', argv) = (options', argv)
         val (options', argv) = eat ([], argv)
     in  (rev options', argv)
@@ -109,24 +111,16 @@ structure Partition = struct
       ))
       handle BadOption s => (app eprint [s, "\n"] ; OS.Process.failure)
 
-  fun splitGradesFile [] = (NONE, [])
-    | splitGradesFile (Gradesfile s :: rest) = (SOME s, rest)
-    | splitGradesFile (other :: rest) =
-      let val (g, r') = splitGradesFile rest
-      in  (g, other :: r')
-      end
+  fun isGradesfile (Gradesfile s) = true
+    | isGradesfile _ = false
+  fun isTreeStyle StudentTree = true
+    | isTreeStyle GradeTree = true
+    | isTreeStyle _ = false
 
   fun doTree (prog, argv') =
       let val (options, argv) = options argv'
-          fun treeStyle [] = (SOME StudentTree, [])
-            | treeStyle (StudentTree :: rest) = (SOME StudentTree, rest)
-            | treeStyle (GradeTree :: rest) = (SOME GradeTree, rest)
-            | treeStyle (other :: rest) =
-              let val (s, r') = treeStyle rest
-              in  (s, other :: r')
-              end
-          val (grades, options) = splitGradesFile options
-          val (treeStyle, options) = treeStyle options
+          val (grades, options) = List.partition isGradesfile options
+          val (treeStyle, options) = List.partition isTreeStyle options
           fun makeStudentTree ins =
               let val outcomes = FileReader.readToMap ins
               in TestResultDecisionTree.make { outcomes = outcomes
@@ -141,21 +135,21 @@ structure Partition = struct
               end
           val success = (fn t => success $ Dot.toString t)
       in case (grades, treeStyle, argv)
-          of  (SOME grades, SOME GradeTree, [outcomes]) =>
+          of  ([Gradesfile grades], [GradeTree], [outcomes]) =>
               let val grades = Util.withInputFromFile grades GradeReader.readToMap
                   val tree = Util.withInputFromFile outcomes (makeGradeTree grades)
               in  success $ TestResultDecisionTree.toDotWithGrades tree grades
               end
-            | (SOME grades, SOME StudentTree, [outcomes]) =>
+            | ([Gradesfile grades], [StudentTree], [outcomes]) =>
               let val grades = Util.withInputFromFile grades GradeReader.readToMap
                   val tree = Util.withInputFromFile outcomes makeStudentTree
               in  success $ TestResultDecisionTree.toDotWithGrades tree grades
               end
-            | (NONE, SOME StudentTree, [outcomes]) =>
+            | ([], [StudentTree], [outcomes]) =>
               let val tree = Util.withInputFromFile outcomes makeStudentTree
               in  success $ TestResultDecisionTree.toDot tree
               end
-            | (NONE, NONE, [outcomes]) =>
+            | ([], [], [outcomes]) =>
               let val tree = Util.withInputFromFile outcomes makeStudentTree
               in  success $ TestResultDecisionTree.toDot tree
               end
@@ -167,34 +161,36 @@ structure Partition = struct
               )
       end
 
-  fun splitReportStyle [] = (NONE, [])
-    | splitReportStyle (WeightOfEvidence f :: rest) = (SOME (WeightOfEvidence f), rest)
-    | splitReportStyle (TreeReport :: rest) = (SOME TreeReport, rest)
-    | splitReportStyle (other :: rest) =
-      let val (s, r') = splitReportStyle rest
-      in  (s, other :: r')
-      end
+  fun isReportStyle (WeightOfEvidence f) = true
+    | isReportStyle TreeReport = true
+    | isReportStyle _ = false
+  fun isCondense Condense = true
+    | isCondense _ = false
 
   fun doReport (prog, argv') =
       let val (options, argv) = options argv'
-          val (reportStyle, options) = splitReportStyle options
-          val success = success o Utln.format ""
+          val (reportStyle, options) = List.partition isReportStyle options
+          val (condense, options) = List.partition isCondense options
+          val post = case condense
+                      of [Condense] => Utln.condense
+                       | _ => fn x => x
+          val success = success o Utln.format "" o post
       in case (reportStyle, argv)
-           of (SOME TreeReport, [outcomes]) =>
+           of ([TreeReport], [outcomes]) =>
               let val db = Util.withInputFromFile outcomes FileReader.readToMap
                   val tree = TestResultDecisionTree.make { outcomes = db
                                                          , informationGain = InformationGain.forStudentTree
                                                          }
               in  success $ DecisionTreeReport.utlnEntries $ DecisionTreeReport.make tree db
               end
-            | (NONE, [outcomes]) =>
+            | ([], [outcomes]) =>
               let val db = Util.withInputFromFile outcomes FileReader.readToMap
                   val tree = TestResultDecisionTree.make { outcomes = db
                                                          , informationGain = InformationGain.forStudentTree
                                                          }
               in  success $ DecisionTreeReport.utlnEntries $ DecisionTreeReport.make tree db
               end
-            | (SOME (WeightOfEvidence grades), [outcomes]) =>
+            | ([WeightOfEvidence grades], [outcomes]) =>
               let val db = Util.withInputFromFile outcomes FileReader.readToMap
                   val grades = Util.withInputFromFile grades GradeReader.readToMap
                   val report = TestWeightOfEvidenceReport.make db grades
