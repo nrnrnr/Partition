@@ -109,6 +109,7 @@ structure TestWeightOfEvidenceReport :> sig
                 , ties : int
                 , prior : real
                 , posterior : real
+                , posteriorC : real
                 }
 
   (* The observation type determines how many entries a student gets
@@ -119,6 +120,15 @@ structure TestWeightOfEvidenceReport :> sig
      the same size.
    *)
   type observation = ((tmark * outcome) * (tmark * outcome))
+  fun tmarks ((tmark0, _), (tmark1, _)) = [tmark0, tmark1]
+  fun shorterWitness db sid (obs0, obs1) =
+      let fun lengthWits tmarks =
+              foldl op + 0 (map (fn t => String.size $ ReportUtil.describe db (sid, t)) tmarks)
+          val tmarks0 = tmarks obs0
+          val tmarks1 = tmarks obs1
+      in  lengthWits tmarks0 < lengthWits tmarks1
+      end
+
   structure ObservationKey = struct
       type ord_key = observation
       fun compare ((t00, t01), (t10, t11)) =
@@ -167,15 +177,15 @@ structure TestWeightOfEvidenceReport :> sig
          )
       end
 
-  fun gradeRatio sids grades =
+  fun oddsAgainstFor sids grades =
       let val numStudents = length sids
           val pairs = map (fn sid => (Map.lookup (sid, grades), sid)) sids
           val gradeHistogram = Entropy.histogram pairs
-          fun ratioFor g =
+          fun oddsAgainst g =
               let val numG = Entropy.H.count (g, gradeHistogram)
               in  real (numStudents - numG) / real numG
               end
-      in  ratioFor
+      in  oddsAgainst
       end
 
   fun make db grades =
@@ -186,7 +196,7 @@ structure TestWeightOfEvidenceReport :> sig
               in  enumerate sid db add m
               end
           val observationMap = foldl update ObservationMap.empty sids
-          val gradeRatio = gradeRatio sids grades
+          val oddsAgainst = oddsAgainstFor sids grades
           fun reportFor (sid, m) =
               let val db = DB.restrict db [sid]
                   val g = Map.lookup (sid, grades)
@@ -199,7 +209,7 @@ structure TestWeightOfEvidenceReport :> sig
                                    then 0.5
                                    else real (total - similar))
                               end
-                      in  10.0 * (Math.log10 $ fobs evidenceFor obs observationMap * gradeRatio g)
+                      in  10.0 * (Math.log10 $ fobs evidenceFor obs observationMap * oddsAgainst g)
                       end
                   fun biggerObs (obs, NONE) = SOME (obs, weight obs)
                     | biggerObs (obs1, SOME (obs0, w0)) = let val w1 = weight obs1
@@ -208,25 +218,34 @@ structure TestWeightOfEvidenceReport :> sig
                                                              else SOME (obs1, w1)
                                                           end
                   fun observationLt (obs0, obs1) =
-                      weight obs0 < weight obs1 orelse ObservationKey.compare (obs1, obs0) = LESS
+                      weight obs0 < weight obs1
+                      orelse shorterWitness db sid (obs1, obs0)
+                      orelse ObservationKey.compare (obs1, obs0) = LESS
                   val observations = ListMergeSort.sort observationLt $ enumerate sid db op :: []
-                  val (tmark0, tmark1, weight, ties) =
+                  val (tmark0, tmark1, weight, ties, posteriorC) =
                       case observations
                         of ((obs as ((t0, _), (t1, _))) :: rest) =>
                            let val w = weight obs
                                val ties = length $ List.filter (fn obs' => Real.== (w, weight obs')) rest
-                           in (t0, t1, w, ties)
+                               fun posteriorOf h =
+                                   let val similar = H.count (g, h)
+                                       val total = H.total h
+                                   in  real similar / real total
+                                   end
+                               val posterior = fobs posteriorOf obs observationMap
+                           in (t0, t1, w, ties, 10.0 * (Math.log10 $ (posterior / (1.0 - posterior))))
                            end
                          | _ => raise Invariant $ "Found no observations for " ^ sid
                   val report0 = (tmark0, ReportUtil.describe db (sid, tmark0))
                   val report1 = (tmark1, ReportUtil.describe db (sid, tmark1))
-                  val prior = 10.0 * Math.log10 (1.0 / gradeRatio g)
+                  val prior = 10.0 * Math.log10 (1.0 / oddsAgainst g)
               in  SolutionMap.insert (m, sid, { feedback = [report0, report1]
                                               , grade = g
                                               , weight = weight
                                               , ties = ties
                                               , prior = prior
                                               , posterior = prior + weight
+                                              , posteriorC = posteriorC
                                               })
               end
           val reports = foldl reportFor SolutionMap.empty sids
@@ -234,20 +253,31 @@ structure TestWeightOfEvidenceReport :> sig
       end
 
   fun utlnEntries reports =
-      let val fmt = Util.fmtReal' 1
-          fun entryFor (sid, {feedback, grade, weight, ties, prior, posterior}) =
-              { sid = sid
-              , grade = grade
-              , commentary = map ReportUtil.fmtFeedback feedback
-              , internalComments = String.concatWith ", " [ "Weight: " ^ fmt weight
-                                                          , "Prior: " ^ fmt prior
-                                                          , "Posterior: " ^ fmt posterior
-                                                          ]
-                                   :: (case ties
-                                        of 0 => []
-                                         | _  => ["Ties for highest weight: " ^ Int.toString ties])
-              }
-          fun reportLt ((_, r0 : report), (_, r1 : report)) = #weight r0 < #weight r1
+      let val fmt1 = Util.fmtReal' 1
+          val fmt2 = Util.fmtReal' 2
+          fun entryFor (sid, {feedback, grade, weight, ties, prior, posterior, posteriorC}) =
+              let val stats = String.concatWith ", " [ "Weight: " ^ fmt1 weight
+                                                     , "Prior: " ^ fmt1 prior
+                                                     ]
+                  val posteriorStat =
+                      if Real.isFinite posteriorC andalso Real.abs (posterior - posteriorC) < 0.01
+                      then fmt1 posterior
+                      else if Real.isFinite posteriorC
+                      then fmt2 posterior ^ "; **" ^ fmt2 posteriorC ^ "**"
+                      else fmt1 posterior ^ "; " ^ fmt1 posteriorC
+                  val stats = stats ^ ", Posterior: " ^ posteriorStat
+                  val stats = stats ::
+                              (case ties
+                                of 0 => []
+                                 | _ => ["Ties for highest weight: " ^ Int.toString ties])
+              in
+                  { sid = sid
+                  , grade = grade
+                  , commentary = map ReportUtil.fmtFeedback feedback
+                  , internalComments = stats
+                  }
+              end
+          fun reportLt ((sid0, r0 : report), (sid1, r1 : report)) = #weight r0 < #weight r1
           val reports = ListMergeSort.sort reportLt reports
       in  map entryFor reports
       end
