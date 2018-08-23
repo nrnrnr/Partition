@@ -52,12 +52,12 @@ end
 
 
   fun toOutcome ["-given", id, "test", num, ",", soln, "passed"] =
-        finish id num soln Outcome.PASSED
+        finish id num soln (Outcome.PASSED "")
     | toOutcome ["-given", id, "test", num, ",", soln, badthing, witness] =
         finish id num soln (Outcome.NOTPASSED { outcome = badthing
                                               , witness = witness })
-    | toOutcome ("given" :: id :: "test" :: num :: "," :: soln :: "passed" :: rest) =
-        finish id num soln Outcome.PASSED
+    | toOutcome ["given", id, "test", num, ",", soln, "passed", witness] =
+        finish id num soln (Outcome.PASSED witness)
     | toOutcome ["given", id, "test", num, ",", soln, badthing, witness] =
         finish id num soln (Outcome.NOTPASSED { outcome = badthing
                                               , witness = witness })
@@ -86,7 +86,7 @@ end
     val s2 = "-given full-methods test 3, bleike01 failed -- missing mapping methods"
 
     val o1 = { testid = "bounds-check", num = 1, solnid = "akhaku01"
-             , outcome = Outcome.PASSED }
+             , outcome = Outcome.PASSED "" }
 
     val o2 = { testid = "full-methods", num = 3, solnid = "bleike01"
              , outcome = Outcome.NOTPASSED { outcome = "failed"

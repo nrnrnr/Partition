@@ -62,7 +62,7 @@ struct
             else f xs outGoal ((soln,false)::bools)
           | f [] _ bools = bools
     in (PROP {flag = true, test = test, number = num,
-              outcome = Outcome.PASSED, results = f l Outcome.PASSED []})::
+              outcome = (Outcome.PASSED ""), results = f l (Outcome.PASSED "") []})::
        (PROP {flag = true, test = test, number = num,
               outcome = (Outcome.NOTPASSED { outcome = "", witness = "" }),
               results = f l (Outcome.NOTPASSED { outcome = "", witness = "" })

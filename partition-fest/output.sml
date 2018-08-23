@@ -77,14 +77,14 @@ struct
       end
 
   and renderOutcomes os =
-      let fun renderOutcome Outcome.PASSED = "|"
+      let fun renderOutcome (Outcome.PASSED _) = "|"
             | renderOutcome (Outcome.NOTPASSED _) = "."
             | renderOutcome Outcome.DNR = "/"
       in  String.concat (map renderOutcome os)
       end
 
   and renderReasons os =
-      let fun withReason (Outcome.PASSED, rs) = rs
+      let fun withReason (Outcome.PASSED _, rs) = rs
             | withReason (Outcome.NOTPASSED { outcome = r, ...}, rs) =
               if List.exists (fn s => r = s) rs
               then rs

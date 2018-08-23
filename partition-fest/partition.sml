@@ -83,7 +83,9 @@ structure Partition = struct
         | NONE => raise BadOption ("For single tests, the tnum must be an integer; got '" ^ tnum ^ "'")
 
 
-  fun perfect outcomes = List.all (fn out => out = OutcomeSingle.PASSED) outcomes
+  fun isPassed (Outcome.PASSED _) = true
+    | isPassed _ = false
+  fun perfect outcomes = List.all isPassed outcomes
 
   fun entropyOptions argv =
       let fun eat (options', "-t" :: tid :: tnum :: argv) = eat (checkSingleTest tid tnum :: options', argv)

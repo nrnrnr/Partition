@@ -1,6 +1,6 @@
 signature OUTCOME = sig
   datatype outcome
-    = PASSED
+    = PASSED of string
     | NOTPASSED of { outcome : string, witness : string }
     | DNR
 

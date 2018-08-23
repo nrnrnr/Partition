@@ -1,10 +1,10 @@
 structure O = struct
   datatype outcome
-    = PASSED
+    = PASSED of string
     | NOTPASSED of { outcome : string, witness : string }
     | DNR
 
-  fun toString PASSED = "passed"
+  fun toString (PASSED _) = "passed"
     | toString (NOTPASSED { outcome = c, ...}) = c
     | toString DNR = "DNR"
  
@@ -16,9 +16,9 @@ structure OutcomeSingle :> OUTCOME = struct
 
   fun eprint s = TextIO.output (TextIO.stdErr, s ^ "\n")
 
-  fun compare (PASSED, NOTPASSED _)      = GREATER
-    | compare (PASSED, PASSED   )        = EQUAL
-    | compare (NOTPASSED _, PASSED)      = LESS
+  fun compare (PASSED _, NOTPASSED _) = GREATER
+    | compare (PASSED w1, PASSED w2)  = String.compare (w1, w2)
+    | compare (NOTPASSED _, PASSED _) = LESS
     | compare (NOTPASSED { outcome = c1, ...}, NOTPASSED { outcome = c2, ... }) =
       let (* not the typical trim function, but equivalent in this context because
              no reason has spaces in the middle *)
@@ -54,9 +54,9 @@ structure OutcomeSingle :> OUTCOME = struct
       ; EQUAL
       )
 
-  fun comparePartial (PASSED, NOTPASSED _)      = SOME GREATER
-    | comparePartial (PASSED, PASSED   )        = SOME EQUAL
-    | comparePartial (NOTPASSED _, PASSED)      = SOME LESS
+  fun comparePartial (PASSED _, NOTPASSED _)    = SOME GREATER
+    | comparePartial (PASSED w1, PASSED w2)     = SOME (String.compare (w1, w2))
+    | comparePartial (NOTPASSED _, PASSED _)    = SOME LESS
     | comparePartial (DNR, DNR)                 = SOME EQUAL
     | comparePartial (NOTPASSED a, NOTPASSED b) =
         if #outcome a = #outcome b then SOME EQUAL else NONE
@@ -72,9 +72,9 @@ end
 structure OutcomeMultiple :> OUTCOME = struct
   open O
       
-  fun compare (PASSED, NOTPASSED _) = GREATER
-    | compare (PASSED, _) = EQUAL
-    | compare (NOTPASSED _, PASSED) = LESS
+  fun compare (PASSED _, NOTPASSED _) = GREATER
+    | compare (PASSED _, _) = EQUAL
+    | compare (NOTPASSED _, PASSED _) = LESS
     | compare (NOTPASSED {outcome = out1, witness = wit1}, 
                NOTPASSED {outcome = out2, witness = wit2}) = 
             if out1 = out2 then EQUAL
@@ -82,9 +82,9 @@ structure OutcomeMultiple :> OUTCOME = struct
     | compare (_, _) = EQUAL
 
   (* dodgy *)
-  fun comparePartial (PASSED, NOTPASSED _) = SOME GREATER
-    | comparePartial (PASSED, _) = SOME EQUAL
-    | comparePartial (NOTPASSED _, PASSED) = SOME LESS
+  fun comparePartial (PASSED _, NOTPASSED _) = SOME GREATER
+    | comparePartial (PASSED _, _) = SOME EQUAL
+    | comparePartial (NOTPASSED _, PASSED _) = SOME LESS
     | comparePartial (NOTPASSED {outcome = out1, witness = wit1}, 
                NOTPASSED {outcome = out2, witness = wit2}) = 
             if out1 = out2 then SOME EQUAL else NONE
