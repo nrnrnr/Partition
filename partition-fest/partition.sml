@@ -169,6 +169,8 @@ structure Partition = struct
   fun isCondense Condense = true
     | isCondense _ = false
 
+  structure SolutionMap = BinaryMapFn(SolutionKey)
+
   fun doReport (prog, argv') =
       let val (options, argv) = options argv'
           val (reportStyle, options) = List.partition isReportStyle options
@@ -195,8 +197,15 @@ structure Partition = struct
             | ([WeightOfEvidence grades], [outcomes]) =>
               let val db = Util.withInputFromFile outcomes FileReader.readToMap
                   val grades = Util.withInputFromFile grades GradeReader.readToMap
-                  val report = TestWeightOfEvidenceReport.make db grades
-              in  success $ TestWeightOfEvidenceReport.utlnEntries report
+                  fun mk n = TestWeightOfEvidenceReport.make n db grades
+                  val reports = mk 1 @ mk 2 @ mk 3
+                  fun binReports ((sid, report), merged) =
+                      let val existing = getOpt (SolutionMap.find (merged, sid), [])
+                          val existing = report :: existing
+                      in  SolutionMap.insert (merged, sid, existing)
+                      end
+                  val reportsBySolution = SolutionMap.listItemsi $ foldr binReports SolutionMap.empty reports
+              in  success $ TestWeightOfEvidenceReport.mergedUtlnEntries reportsBySolution
               end
             | _ =>
               ( eprint (String.concatWith " " ["Usage:", prog, "report [--tree-report | --weight-of-evidence grades] outcomes\n"])

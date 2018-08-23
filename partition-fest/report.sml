@@ -87,7 +87,8 @@ end
 structure TestWeightOfEvidenceReport :> sig
               type sid = string
               type report
-              val make : DB.db -> Grade.grade Map.map -> (sid * report) list
+              val make : int -> DB.db -> Grade.grade Map.map -> (sid * report) list
+              val mergedUtlnEntries : (sid * (report list)) list -> Utln.entry list
               val utlnEntries : (sid * report) list -> Utln.entry list
           end
 = struct
@@ -113,15 +114,14 @@ structure TestWeightOfEvidenceReport :> sig
                 , posteriorC : real
                 }
 
-  val REPORT_SIZE = 2
   type observation = (tmark * outcome) list
   fun tmarks obs = map (fn (tm, _) => tm) obs
-  fun shorterWitness db sid (obs0, obs1) =
+  fun compareWitness db sid (obs0, obs1) =
       let fun lengthWits tmarks =
               foldl op + 0 (map (fn t => String.size $ ReportUtil.describe db (sid, t)) tmarks)
           val tmarks0 = tmarks obs0
           val tmarks1 = tmarks obs1
-      in  lengthWits tmarks0 < lengthWits tmarks1
+      in  Int.compare (lengthWits tmarks0, lengthWits tmarks1)
       end
 
   structure ObservationKey = struct
@@ -143,18 +143,18 @@ structure TestWeightOfEvidenceReport :> sig
       in  f $ getOpt (h, H.zeroes)
       end
   fun fmap f obs m = ObservationMap.insert (m, obs, fobs f obs m)
-  fun enumerate sid db add init =
+  fun enumerate numRows sid db add init =
       let val db = DB.restrict db [sid]
           val tmarks = TestUtil.tmarksOfDb db
           fun withOutcome (tid, tnum) =
               let val outcome = DB.lookup (tid, Int.toString tnum, sid, db)
               in  ((tid, tnum), Outcome.toString outcome)
               end
-          val observations = Util.combinations (map withOutcome tmarks) REPORT_SIZE
+          val observations = Util.combinations (map withOutcome tmarks) numRows
       in  foldl add init observations
       end
 
-  fun printWeights db sid weight =
+  fun printWeights enumerate db sid weight =
       let fun debugWeights (obs, _) =
               let val w = weight obs
                   fun fmtRow ((tid, tnum), out) = "(" ^ tid ^ " " ^ Int.toString tnum ^ " " ^ out ^ ")"
@@ -177,8 +177,11 @@ structure TestWeightOfEvidenceReport :> sig
       in  oddsAgainst
       end
 
-  fun make db grades =
+  fun make n db grades =
       let val sids = TestUtil.sidsOfDb db
+          fun enumerate' db sid weight = enumerate n db sid weight
+          val enumerate = enumerate'
+          (* val enumerate = enumerate n *)
           fun update (sid, m) =
               let val grade = Map.lookup (sid, grades)
                   fun add (obs, m) = fmap (fn h => H.inc (grade, h)) obs m
@@ -200,16 +203,15 @@ structure TestWeightOfEvidenceReport :> sig
                               end
                       in  10.0 * (Math.log10 $ fobs evidenceFor obs observationMap * oddsAgainst g)
                       end
-                  fun biggerObs (obs, NONE) = SOME (obs, weight obs)
-                    | biggerObs (obs1, SOME (obs0, w0)) = let val w1 = weight obs1
-                                                          in if w0 > w1
-                                                             then SOME (obs0, w0)
-                                                             else SOME (obs1, w1)
-                                                          end
                   fun observationLt (obs0, obs1) =
-                      weight obs0 < weight obs1
-                      orelse shorterWitness db sid (obs1, obs0)
-                      orelse ObservationKey.compare (obs1, obs0) = LESS
+                      let val w0 = weight obs0
+                          val w1 = weight obs1
+                      in  if Real.== (w0, w1)
+                          then case compareWitness db sid (obs1, obs0)
+                                of EQUAL => ObservationKey.compare (obs1, obs0) = LESS
+                                 | order => order = LESS
+                          else w0 < w1
+                      end
                   val observations = ListMergeSort.sort observationLt $ enumerate sid db op :: []
                   val (tmarks, weight, ties, posteriorC) =
                       case observations
@@ -240,33 +242,54 @@ structure TestWeightOfEvidenceReport :> sig
       in  SolutionMap.listItemsi reports
       end
 
-  fun utlnEntries reports =
+  fun entryFor (sid, {feedback, grade, weight, ties, prior, posterior, posteriorC}) =
       let val fmt1 = Util.fmtReal' 1
           val fmt2 = Util.fmtReal' 2
-          fun entryFor (sid, {feedback, grade, weight, ties, prior, posterior, posteriorC}) =
-              let val stats = String.concatWith ", " [ "Weight: " ^ fmt2 weight
-                                                     , "Prior: " ^ fmt1 prior
-                                                     ]
-                  val posteriorStat =
-                      if Real.isFinite posteriorC andalso Real.abs (posterior - posteriorC) < 0.01
-                      then fmt1 posterior
-                      else if Real.isFinite posteriorC
-                      then fmt2 posterior ^ "; **" ^ fmt2 posteriorC ^ "**"
-                      else fmt1 posterior ^ "; " ^ fmt1 posteriorC
-                  val stats = stats ^ ", Posterior: " ^ posteriorStat
-                  val stats = stats ::
-                              (case ties
-                                of 0 => []
-                                 | _ => ["Ties for highest weight: " ^ Int.toString ties])
-              in
-                  { sid = sid
-                  , grade = grade
-                  , commentary = map ReportUtil.fmtFeedback feedback
-                  , internalComments = stats
-                  }
+          val stats = String.concatWith ", " [ "Weight: " ^ fmt2 weight
+                                             , "Prior: " ^ fmt1 prior
+                                             ]
+          val posteriorStat =
+              if Real.isFinite posteriorC andalso Real.abs (posterior - posteriorC) < 0.01
+              then fmt1 posterior
+              else if Real.isFinite posteriorC
+              then fmt2 posterior ^ "; **" ^ fmt2 posteriorC ^ "**"
+              else fmt1 posterior ^ "; " ^ fmt1 posteriorC
+          val stats = stats ^ ", Posterior: " ^ posteriorStat
+          val stats = stats ::
+                      (case ties
+                        of 0 => []
+                         | _ => ["Ties for highest weight: " ^ Int.toString ties])
+      in
+          { sid = sid
+          , grade = grade
+          , commentary = map ReportUtil.fmtFeedback feedback
+          , internalComments = stats
+          }
+      end
+  fun utlnEntries reports = map entryFor reports
+
+  fun mergedUtlnEntries reportss =
+      let fun reportsLt ((sid0, rs0 : report list), (sid1, rs1 : report list)) =
+              let fun reportLt (r0 : report, r1 : report) = #weight r0 < #weight r1
+                  val rs0 = ListMergeSort.sort reportLt rs0
+                  val rs1 = ListMergeSort.sort reportLt rs1
+              in  case (rs0, rs1)
+                   of (r0 :: _, r1 :: _) => reportLt (r0, r1)
+                    | _ => Impossible.impossible "both report lists should be nonempty"
               end
-          fun reportLt ((sid0, r0 : report), (sid1, r1 : report)) = #weight r0 < #weight r1
-          val reports = ListMergeSort.sort reportLt reports
-      in  map entryFor reports
+          val reportss = ListMergeSort.sort reportsLt reportss
+          val reportEntry = entryFor
+          fun mergeEntries (e1 : Utln.entry, e2 : Utln.entry) =
+              { sid = #sid e1
+              , grade = #grade e1
+              , commentary = #commentary e1 @ "" :: #commentary e2
+              , internalComments = #internalComments e1 @ "" :: #internalComments e2
+              }
+          fun entryFor (sid, r :: rest) =
+              let fun merge (r, e) = mergeEntries (e, reportEntry (sid, r))
+              in  foldl merge (reportEntry (sid, r)) rest
+              end
+            | entryFor _ = Impossible.impossible "each report list should be nonempty"
+      in  map entryFor reportss
       end
 end
