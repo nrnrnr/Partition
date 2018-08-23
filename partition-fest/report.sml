@@ -112,15 +112,9 @@ structure TestWeightOfEvidenceReport :> sig
                 , posteriorC : real
                 }
 
-  (* The observation type determines how many entries a student gets
-     back in their report. For just (tmark * outcome), they'll only
-     get one; for (tmark * outcome * tmark * outcome), they'll get
-     two; etc. If it's a list type then we probably need to be careful
-     about the sizes of the list---e.g. that all of them need to be
-     the same size.
-   *)
-  type observation = ((tmark * outcome) * (tmark * outcome))
-  fun tmarks ((tmark0, _), (tmark1, _)) = [tmark0, tmark1]
+  val REPORT_SIZE = 2
+  type observation = (tmark * outcome) list
+  fun tmarks obs = map (fn (tm, _) => tm) obs
   fun shorterWitness db sid (obs0, obs1) =
       let fun lengthWits tmarks =
               foldl op + 0 (map (fn t => String.size $ ReportUtil.describe db (sid, t)) tmarks)
@@ -131,14 +125,12 @@ structure TestWeightOfEvidenceReport :> sig
 
   structure ObservationKey = struct
       type ord_key = observation
-      fun compare ((t00, t01), (t10, t11)) =
-          let fun compare' ((tmark0, outcome0), (tmark1, outcome1)) =
+      fun compare rows =
+          let fun compareRows ((tmark0, outcome0), (tmark1, outcome1)) =
                   case TmarkKey.compare (tmark0, tmark1)
                    of EQUAL => String.compare (outcome0, outcome1)
                     | order => order
-          in  case compare' (t00, t10)
-                of EQUAL => compare' (t01, t11)
-                 | order => order
+          in  List.collate compareRows rows
           end
     end
   structure ObservationMap = BinaryMapFn(ObservationKey)
@@ -157,20 +149,16 @@ structure TestWeightOfEvidenceReport :> sig
               let val outcome = DB.lookup (tid, Int.toString tnum, sid, db)
               in  ((tid, tnum), Outcome.toString outcome)
               end
-          val observations = Util.combinations (map withOutcome tmarks) 2
-          fun add' ([obs0, obs1], v) = add ((obs0, obs1), v)
-            | add' _ = let exception ThisCan'tHappen in raise ThisCan'tHappen end
-      in  foldl add' init observations
+          val observations = Util.combinations (map withOutcome tmarks) REPORT_SIZE
+      in  foldl add init observations
       end
 
   fun printWeights db sid weight =
-      let fun debugWeights (obs as (((tid0, tnum0), outcome0), ((tid1, tnum1), outcome1)), _) =
+      let fun debugWeights (obs, _) =
               let val w = weight obs
-                  val tnum0 = Int.toString tnum0
-                  val tmark0 = tid0 ^ "," ^ tnum0
-                  val tnum1 = Int.toString tnum1
-                  val tmark1 = tid0 ^ "," ^ tnum1
-              in  eprintln $ String.concatWith " " [sid, tmark0, outcome0, tmark1, outcome1, Util.fmtReal w]
+                  fun fmtRow ((tid, tnum), out) = "(" ^ tid ^ " " ^ Int.toString tnum ^ " " ^ out ^ ")"
+                  val rows = map fmtRow obs
+              in  eprintln $ String.concatWith " " (sid :: rows @ [Util.fmtReal w])
               end
       in ( enumerate sid db debugWeights ()
          ; eprintln ""
@@ -222,9 +210,9 @@ structure TestWeightOfEvidenceReport :> sig
                       orelse shorterWitness db sid (obs1, obs0)
                       orelse ObservationKey.compare (obs1, obs0) = LESS
                   val observations = ListMergeSort.sort observationLt $ enumerate sid db op :: []
-                  val (tmark0, tmark1, weight, ties, posteriorC) =
+                  val (tmarks, weight, ties, posteriorC) =
                       case observations
-                        of ((obs as ((t0, _), (t1, _))) :: rest) =>
+                        of (obs :: rest) =>
                            let val w = weight obs
                                val ties = length $ List.filter (fn obs' => Real.== (w, weight obs')) rest
                                fun posteriorOf h =
@@ -233,13 +221,12 @@ structure TestWeightOfEvidenceReport :> sig
                                    in  real similar / real total
                                    end
                                val posterior = fobs posteriorOf obs observationMap
-                           in (t0, t1, w, ties, 10.0 * (Math.log10 $ (posterior / (1.0 - posterior))))
+                           in (tmarks obs, w, ties, 10.0 * (Math.log10 $ (posterior / (1.0 - posterior))))
                            end
                          | _ => raise Invariant $ "Found no observations for " ^ sid
-                  val report0 = (tmark0, ReportUtil.describe db (sid, tmark0))
-                  val report1 = (tmark1, ReportUtil.describe db (sid, tmark1))
+                  val reports = map (fn tm => (tm, ReportUtil.describe db (sid, tm))) tmarks
                   val prior = 10.0 * Math.log10 (1.0 / oddsAgainst g)
-              in  SolutionMap.insert (m, sid, { feedback = [report0, report1]
+              in  SolutionMap.insert (m, sid, { feedback = reports
                                               , grade = g
                                               , weight = weight
                                               , ties = ties
