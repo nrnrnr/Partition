@@ -51,13 +51,22 @@ end
   end
 
 
-  fun toOutcome ["-given", id, "test", num, ",", soln, "passed"] =
-        finish id num soln (Outcome.PASSED "")
+  fun toOutcome (hd :: id :: "test" :: num :: "," :: soln :: "passed" :: rest) =
+      let val () = case hd
+                     of "given" => ()
+                      | "-given"  => ()
+                      | _ => I.impossible "ill-formed input line"
+          val witness =
+              case rest
+               of [] => ""
+                | [w]  => w
+                | _ => I.impossible "ill-formed input line"
+      in  finish id num soln (Outcome.PASSED witness)
+      end
+
     | toOutcome ["-given", id, "test", num, ",", soln, badthing, witness] =
         finish id num soln (Outcome.NOTPASSED { outcome = badthing
                                               , witness = witness })
-    | toOutcome ["given", id, "test", num, ",", soln, "passed", witness] =
-        finish id num soln (Outcome.PASSED witness)
     | toOutcome ["given", id, "test", num, ",", soln, badthing, witness] =
         finish id num soln (Outcome.NOTPASSED { outcome = badthing
                                               , witness = witness })

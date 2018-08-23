@@ -25,7 +25,7 @@ structure ReportUtil :> sig
           val outcome = DB.lookup (tid, tnum, sid, db)
       in case outcome
           of (Outcome.PASSED "") => "you passed."
-           | (Outcome.PASSED w) => w ^ "."
+           | (Outcome.PASSED w) => w
            | (Outcome.NOTPASSED { witness = w, ...}) => w ^ "."
            | DNR => raise Invariant $ "Got DNR for " ^ String.concatWith " " [sid, tid, tnum]
       end
