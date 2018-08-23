@@ -3,13 +3,19 @@ structure O = struct
     = PASSED of string
     | NOTPASSED of { outcome : string, witness : string }
     | DNR
+  exception DNRComparison
 
   fun toString (PASSED _) = "passed"
     | toString (NOTPASSED { outcome = c, ...}) = c
     | toString DNR = "DNR"
- 
-  exception DNRComparison
+
+  fun mkWeakCompare compare =
+      let fun weakCompare (PASSED _, PASSED _) = EQUAL
+            | weakCompare (o1, o2) = compare (o1, o2)
+      in  weakCompare
+      end
 end
+
 
 structure OutcomeSingle :> OUTCOME = struct
   open O
@@ -17,7 +23,7 @@ structure OutcomeSingle :> OUTCOME = struct
   fun eprint s = TextIO.output (TextIO.stdErr, s ^ "\n")
 
   fun compare (PASSED _, NOTPASSED _) = GREATER
-    | compare (PASSED w1, PASSED w2)  = String.compare (w1, w2)
+    | compare (PASSED _, PASSED _)  = EQUAL
     | compare (NOTPASSED _, PASSED _) = LESS
     | compare (NOTPASSED { outcome = c1, ...}, NOTPASSED { outcome = c2, ... }) =
       let (* not the typical trim function, but equivalent in this context because
@@ -53,9 +59,10 @@ structure OutcomeSingle :> OUTCOME = struct
             ()
       ; EQUAL
       )
+  val weakCompare = mkWeakCompare compare
 
   fun comparePartial (PASSED _, NOTPASSED _)    = SOME GREATER
-    | comparePartial (PASSED w1, PASSED w2)     = SOME (String.compare (w1, w2))
+    | comparePartial (PASSED _, PASSED _)       = SOME EQUAL
     | comparePartial (NOTPASSED _, PASSED _)    = SOME LESS
     | comparePartial (DNR, DNR)                 = SOME EQUAL
     | comparePartial (NOTPASSED a, NOTPASSED b) =
@@ -66,12 +73,15 @@ structure OutcomeSingle :> OUTCOME = struct
     (case compare (o1, o2)
       of EQUAL => true
        | _     => false) handle DNRComparison => false
-
+  fun weakEq (o1, o2) =
+      (case weakCompare (o1, o2)
+        of EQUAL => true
+         | _     => false) handle DNRComparison => false
 end
 
 structure OutcomeMultiple :> OUTCOME = struct
   open O
-      
+
   fun compare (PASSED _, NOTPASSED _) = GREATER
     | compare (PASSED _, _) = EQUAL
     | compare (NOTPASSED _, PASSED _) = LESS
@@ -80,6 +90,7 @@ structure OutcomeMultiple :> OUTCOME = struct
             if out1 = out2 then EQUAL
                           else if out1 = "errored" then LESS else GREATER
     | compare (_, _) = EQUAL
+  val weakCompare = mkWeakCompare compare
 
   (* dodgy *)
   fun comparePartial (PASSED _, NOTPASSED _) = SOME GREATER
@@ -95,7 +106,10 @@ structure OutcomeMultiple :> OUTCOME = struct
     (case compare (o1, o2)
       of EQUAL => true
        | _     => false)
-
+  fun weakEq (o1, o2) =
+      (case weakCompare (o1, o2)
+        of EQUAL => true
+         | _     => false) handle DNRComparison => false
 end
 
 structure Outcome = OutcomeSingle

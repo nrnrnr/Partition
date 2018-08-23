@@ -9,7 +9,11 @@ signature OUTCOME = sig
   exception DNRComparison
 
   val compare     : outcome * outcome -> order
-  val eq            : outcome * outcome -> bool 
+  (* weakCompare is like compare, but returns EQUAL for any two PASSED outcomes *)
+  val weakCompare : outcome * outcome -> order
+  val eq          : outcome * outcome -> bool
+  (* weakEq is like eq, but only considers things EQUAL according to weakCompare *)
+  val weakEq      : outcome * outcome -> bool
 
   val comparePartial : outcome * outcome -> order option
 

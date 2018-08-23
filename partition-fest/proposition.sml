@@ -157,14 +157,14 @@ struct
       PROP{flag=b2, test=n2, number=num2, outcome=out2, ...}) => 
     if n1 < n2 then LESS
      else if n1 = n2 then if num1 < num2 then LESS
-		          else if num1 = num2 then Outcome.compare(out1,out2)
+		          else if num1 = num2 then Outcome.weakCompare(out1,out2)
                                else GREATER
           else GREATER
 
   val equiv : prop * prop * bool -> bool =
   fn (PROP{flag=b1, test=n1, number=num1, outcome=out1, ...}, 
       PROP{flag=b2, test=n2, number=num2, outcome=out2, ...},flag) => 
-    n1 = n2 andalso num1 = num2 andalso Outcome.eq(out1,out2) andalso flag
+    n1 = n2 andalso num1 = num2 andalso Outcome.weakEq(out1,out2) andalso flag
 
   val equivPropLists : prop list * prop list -> bool =
   fn (l1, l2) => 
