@@ -243,7 +243,7 @@ structure TestWeightOfEvidenceReport :> sig
       let val fmt1 = Util.fmtReal' 1
           val fmt2 = Util.fmtReal' 2
           fun entryFor (sid, {feedback, grade, weight, ties, prior, posterior, posteriorC}) =
-              let val stats = String.concatWith ", " [ "Weight: " ^ fmt1 weight
+              let val stats = String.concatWith ", " [ "Weight: " ^ fmt2 weight
                                                      , "Prior: " ^ fmt1 prior
                                                      ]
                   val posteriorStat =
