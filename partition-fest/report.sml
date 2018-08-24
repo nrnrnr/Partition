@@ -98,6 +98,9 @@ structure TestWeightOfEvidenceReport :> sig
   fun eprint s = TextIO.output(TextIO.stdErr, s)
   fun eprintln s = (eprint $ s ^ "\n")
   structure H = Histogram
+  structure U = Util
+  val (    combinations,   breakTies,   invertOrdering,   fmtReal,   fmtReal')
+      = (U.combinations, U.breakTies, U.invertOrdering, U.fmtReal, U.fmtReal')
   structure SolutionMap = BinaryMapFn(SolutionKey)
   type sid = string
   type tid = string
@@ -150,7 +153,7 @@ structure TestWeightOfEvidenceReport :> sig
               let val outcome = DB.lookup (tid, Int.toString tnum, sid, db)
               in  ((tid, tnum), Outcome.toString outcome)
               end
-          val observations = Util.combinations (map withOutcome tmarks) numRows
+          val observations = combinations (map withOutcome tmarks) numRows
       in  foldl add init observations
       end
 
@@ -159,7 +162,7 @@ structure TestWeightOfEvidenceReport :> sig
               let val w = weight obs
                   fun fmtRow ((tid, tnum), out) = "(" ^ tid ^ " " ^ Int.toString tnum ^ " " ^ out ^ ")"
                   val rows = map fmtRow obs
-              in  eprintln $ String.concatWith " " (sid :: rows @ [Util.fmtReal w])
+              in  eprintln $ String.concatWith " " (sid :: rows @ [fmtReal w])
               end
       in ( enumerate sid db debugWeights ()
          ; eprintln ""
@@ -203,15 +206,12 @@ structure TestWeightOfEvidenceReport :> sig
                               end
                       in  10.0 * (Math.log10 $ fobs evidenceFor obs observationMap * oddsAgainst g)
                       end
-                  fun observationLt (obs0, obs1) =
-                      let val w0 = weight obs0
-                          val w1 = weight obs1
-                      in  if Real.== (w0, w1)
-                          then case compareWitness db sid (obs1, obs0)
-                                of EQUAL => ObservationKey.compare (obs1, obs0) = LESS
-                                 | order => order = LESS
-                          else w0 < w1
-                      end
+                  fun compareWeight (obs0, obs1) = Real.compare (weight obs0, weight obs1)
+                  val compareObservation =
+                      breakTies (compareWeight,
+                                 breakTies (invertOrdering (compareWitness db sid),
+                                            invertOrdering ObservationKey.compare))
+                  fun observationLt args = compareObservation args = LESS
                   val observations = ListMergeSort.sort observationLt $ enumerate sid db op :: []
                   val (tmarks, weight, ties, posteriorC) =
                       case observations
@@ -243,8 +243,8 @@ structure TestWeightOfEvidenceReport :> sig
       end
 
   fun entryFor (sid, {feedback, grade, weight, ties, prior, posterior, posteriorC}) =
-      let val fmt1 = Util.fmtReal' 1
-          val fmt2 = Util.fmtReal' 2
+      let val fmt1 = fmtReal' 1
+          val fmt2 = fmtReal' 2
           val stats = String.concatWith ", " [ "Weight: " ^ fmt2 weight
                                              , "Prior: " ^ fmt1 prior
                                              ]

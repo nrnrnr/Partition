@@ -21,6 +21,10 @@ signature UTILITIES = sig
   val fmtReal' : int -> real -> string
   val permutations : ''a list -> int -> ''a list list
   val combinations : 'a list -> int -> 'a list list
+
+  type 'a ordering = 'a * 'a -> order
+  val breakTies : ('a ordering * 'a ordering) -> 'a ordering
+  val invertOrdering : 'a ordering -> 'a ordering
 end
 
 structure Util : UTILITIES = struct
@@ -137,4 +141,15 @@ fun combinations xs 0 = []
         val combs = map (fn c => x :: c) combs
     in  combs @ combinations xs n
     end
+
+type 'a ordering = 'a * 'a -> order
+fun breakTies (c1, c2) args =
+    case c1 args
+     of EQUAL => c2 args
+      | diff  => diff
+fun invertOrdering f args =
+    case f args
+     of LESS => GREATER
+      | GREATER => LESS
+      | order => order
 end
