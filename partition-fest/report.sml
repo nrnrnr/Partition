@@ -23,10 +23,13 @@ structure ReportUtil :> sig
   fun describe db (sid, (tid, tnum)) =
       let val tnum = Int.toString tnum
           val outcome = DB.lookup (tid, tnum, sid, db)
+          fun punctuate s = if String.isSuffix "." s
+                            then s
+                            else s ^ "."
       in case outcome
           of (Outcome.PASSED "") => "you passed."
-           | (Outcome.PASSED w) => w
-           | (Outcome.NOTPASSED { witness = w, ...}) => w ^ "."
+           | (Outcome.PASSED w) => punctuate w
+           | (Outcome.NOTPASSED { witness = w, ...}) => punctuate w
            | DNR => raise Invariant $ "Got DNR for " ^ String.concatWith " " [sid, tid, tnum]
       end
 
@@ -109,11 +112,11 @@ structure TestWeightOfEvidenceReport :> sig
   type outcome = string
   type report = { feedback : (tmark * string) list
                 , grade : Grade.grade
-                , weight : real
-                , ties : int
+                , obsInfo : (real * int)
                 , prior : real
                 , posterior : real
                 , posteriorC : real
+                , likelyGradeInfo : (Grade.grade * int * real)
                 }
 
   type observation = (tmark * outcome) list
@@ -179,11 +182,20 @@ structure TestWeightOfEvidenceReport :> sig
       in  oddsAgainst
       end
 
+  fun mostLikelyGrade h =
+      let val grades = H.nonzeroKeys h
+          fun lessLikely (g0, g1) = H.count (g0, h) < H.count (g1, h)
+          val grades = ListMergeSort.sort lessLikely grades
+          fun equallyLikely g0 g1 = H.count (g0, h) = H.count (g1, h)
+      in  case grades
+           of (g :: rest) => (g, length $ List.filter (equallyLikely g) rest)
+             | _  => raise Invariant $ "Found no (likely) grades in histogram."
+      end
+
   fun make n db grades =
       let val sids = TestUtil.sidsOfDb db
           fun enumerate' db sid weight = enumerate n db sid weight
           val enumerate = enumerate'
-          (* val enumerate = enumerate n *)
           fun update (sid, m) =
               let val grade = Map.lookup (sid, grades)
                   fun add (obs, m) = fmap (fn h => H.inc (grade, h)) obs m
@@ -212,37 +224,46 @@ structure TestWeightOfEvidenceReport :> sig
                                             invertOrdering ObservationKey.compare))
                   fun observationLt args = compareObservation args = LESS
                   val observations = ListMergeSort.sort observationLt $ enumerate sid db op :: []
-                  val (tmarks, weight, ties, posteriorC) =
+                  val (tmarks, weight, ties, posteriorOf, likelyGrade, likelyGradeTies) =
                       case observations
                         of (obs :: rest) =>
                            let val w = weight obs
                                val ties = length $ List.filter (fn obs' => Real.== (w, weight obs')) rest
-                               fun posteriorOf h =
-                                   let val similar = H.count (g, h)
-                                       val total = H.total h
-                                   in  real similar / real total
+                               fun posteriorOf g =
+                                   let fun probOfG h =
+                                           let val similar = H.count (g, h)
+                                               val total = H.total h
+                                           in  real similar / real total
+                                           end
+                                   in  fobs probOfG obs observationMap
                                    end
-                               val posterior = fobs posteriorOf obs observationMap
-                           in (tmarks obs, w, ties, 10.0 * (Math.log10 $ (posterior / (1.0 - posterior))))
+                               val (likelyG, likelyGTies) = fobs mostLikelyGrade obs observationMap
+                           in (tmarks obs, w, ties, posteriorOf, likelyG, likelyGTies)
                            end
                          | _ => raise Invariant $ "Found no observations for " ^ sid
                   val reports = map (fn tm => (tm, ReportUtil.describe db (sid, tm))) tmarks
+                  fun logOdds n = 10.0 * Math.log10 (n / (1.0 - n))
                   val prior = 10.0 * Math.log10 (1.0 / oddsAgainst g)
               in  SolutionMap.insert (m, sid, { feedback = reports
                                               , grade = g
-                                              , weight = weight
-                                              , ties = ties
+                                              , obsInfo = (weight, ties)
                                               , prior = prior
                                               , posterior = prior + weight
-                                              , posteriorC = posteriorC
+                                              , posteriorC = logOdds (posteriorOf g)
+                                              , likelyGradeInfo = ( likelyGrade
+                                                                  , likelyGradeTies
+                                                                  , logOdds (posteriorOf likelyGrade)
+                                                                  )
                                               })
               end
           val reports = foldl reportFor SolutionMap.empty sids
       in  SolutionMap.listItemsi reports
       end
 
-  fun entryFor (sid, {feedback, grade, weight, ties, prior, posterior, posteriorC}) =
-      let val fmt1 = fmtReal' 1
+  fun entryFor (sid, {feedback, grade, obsInfo, prior, posterior, posteriorC, likelyGradeInfo}) =
+      let val (weight, ties) = obsInfo
+          val (likelyG, likelyGTies, likelyLogOdds) = likelyGradeInfo
+          val fmt1 = fmtReal' 1
           val fmt2 = fmtReal' 2
           val stats = String.concatWith ", " [ "Weight: " ^ fmt2 weight
                                              , "Prior: " ^ fmt1 prior
@@ -258,6 +279,15 @@ structure TestWeightOfEvidenceReport :> sig
                       (case ties
                         of 0 => []
                          | _ => ["Ties for highest weight: " ^ Int.toString ties])
+          val likelyGDescr =
+              ["Most likely grade: " ^ Grade.toString likelyG ^ ", Posterior: " ^ fmt1 likelyLogOdds] @
+              (case likelyGTies
+                of 0 => []
+                 | n => ["Ties for most likely grade: " ^ Int.toString n])
+
+          val stats = stats @ (if grade <> likelyG
+                               then likelyGDescr
+                               else [])
       in
           { sid = sid
           , grade = grade
@@ -269,7 +299,11 @@ structure TestWeightOfEvidenceReport :> sig
 
   fun mergedUtlnEntries reportss =
       let fun reportsLt ((sid0, rs0 : report list), (sid1, rs1 : report list)) =
-              let fun reportLt (r0 : report, r1 : report) = #weight r0 < #weight r1
+              let fun weight (r : report) =
+                      let val (weight, _) = #obsInfo r
+                      in  weight
+                      end
+                  fun reportLt (r0 : report, r1 : report) = weight r0 < weight r1
                   val rs0 = ListMergeSort.sort reportLt rs0
                   val rs1 = ListMergeSort.sort reportLt rs1
               in  case (rs0, rs1)
