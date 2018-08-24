@@ -77,8 +77,7 @@ structure DecisionTreeReport :> sig
       let fun entryFor (sid, {feedback}) =
               { sid = sid
               , grade = Grade.UNKNOWN "I"
-              , commentary = map ReportUtil.fmtFeedback feedback
-              , internalComments = []
+              , commentary = map (Utln.plain o ReportUtil.fmtFeedback) feedback
               }
       in  map entryFor reports
       end
@@ -262,8 +261,8 @@ structure TestWeightOfEvidenceReport :> sig
       in
           { sid = sid
           , grade = grade
-          , commentary = map ReportUtil.fmtFeedback feedback
-          , internalComments = stats
+          , commentary = map (Utln.plain o ReportUtil.fmtFeedback) feedback
+                         @ map Utln.excised stats
           }
       end
   fun utlnEntries reports = map entryFor reports
@@ -282,8 +281,7 @@ structure TestWeightOfEvidenceReport :> sig
           fun mergeEntries (e1 : Utln.entry, e2 : Utln.entry) =
               { sid = #sid e1
               , grade = #grade e1
-              , commentary = #commentary e1 @ "" :: #commentary e2
-              , internalComments = #internalComments e1 @ "" :: #internalComments e2
+              , commentary = #commentary e1 @ Utln.blank :: #commentary e2
               }
           fun entryFor (sid, r :: rest) =
               let fun merge (r, e) = mergeEntries (e, reportEntry (sid, r))
