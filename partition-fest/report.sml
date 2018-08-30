@@ -155,6 +155,7 @@ structure TestWeightOfEvidenceReport :> sig
               let val outcome = DB.lookup (tid, Int.toString tnum, sid, db)
               in  ((tid, tnum), Outcome.toString outcome)
               end
+          val numRows = Int.min (length tmarks, numRows)
           val observations = combinations (map withOutcome tmarks) numRows
       in  foldl add init observations
       end
