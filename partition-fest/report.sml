@@ -195,8 +195,7 @@ structure TestWeightOfEvidenceReport :> sig
 
   fun make n db grades =
       let val sids = TestUtil.sidsOfDb db
-          fun enumerate' db sid weight = enumerate n db sid weight
-          val enumerate = enumerate'
+          val enumerate = (fn sid => enumerate n sid) (* eta-expand because value restriction *)
           fun update (sid, m) =
               let val grade = Map.lookup (sid, grades)
                   fun add (obs, m) = fmap (fn h => H.inc (grade, h)) obs m
@@ -312,14 +311,32 @@ structure TestWeightOfEvidenceReport :> sig
                     | _ => Impossible.impossible "both report lists should be nonempty"
               end
           val reportss = ListMergeSort.sort reportsLt reportss
-          val reportEntry = entryFor
+          fun extends32 (r0 : report, r1 : report) =
+              let val tmarks0 = tmarks $ #feedback r0
+                  val tmarks1 = tmarks $ #feedback r1
+              in  length tmarks0 = 3
+                  andalso length tmarks1 = 2
+                  andalso List.all (fn tmark1 => Util.member tmark1 tmarks0) tmarks1
+              end
+
+          fun reportEntry others (sid, r) =
+              let val (e as {sid, grade, commentary}) = entryFor (sid, r)
+              in  case List.filter (fn r' => extends32 (r, r')) others
+                   of [] => e
+                    | _ => { sid = sid
+                           , grade = grade
+                           , commentary = commentary @ [Utln.excised "Three row report extends two row report"]
+                           }
+              end
+
           fun mergeEntries (e1 : Utln.entry, e2 : Utln.entry) =
               { sid = #sid e1
               , grade = #grade e1
               , commentary = #commentary e1 @ Utln.blank :: #commentary e2
               }
-          fun entryFor (sid, r :: rest) =
-              let fun merge (r, e) = mergeEntries (e, reportEntry (sid, r))
+          fun entryFor (sid, rs as r :: rest) =
+              let val reportEntry = reportEntry rs
+                  fun merge (r, e) = mergeEntries (e, reportEntry (sid, r))
               in  foldl merge (reportEntry (sid, r)) rest
               end
             | entryFor _ = Impossible.impossible "each report list should be nonempty"
